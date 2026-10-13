@@ -1,0 +1,26 @@
+{"id": "q01", "question": "How many days of annual leave do full time employees get?", "groups": ["all"], "gold": ["employee_handbook.pdf#p2"], "expect": ["18"]}
+{"id": "q02", "question": "How much holiday do I get each year?", "groups": ["all"], "gold": ["employee_handbook.pdf#p2"], "expect": ["18"]}
+{"id": "q03", "question": "Until when can I use annual leave carried forward from last year?", "groups": ["all"], "gold": ["employee_handbook.pdf#p2"], "expect": ["31 March"]}
+{"id": "q04", "question": "How many days per week can office staff work remotely?", "groups": ["all"], "gold": ["employee_handbook.pdf#p1"], "expect": ["two days"]}
+{"id": "q05", "question": "Can warehouse staff work from home?", "groups": ["all"], "gold": ["employee_handbook.pdf#p1"], "expect": ["not eligible"]}
+{"id": "q06", "question": "How long is paid paternity leave?", "groups": ["all"], "gold": ["employee_handbook.pdf#p2"], "expect": ["4 weeks"]}
+{"id": "q07", "question": "What is the maximum value of a gift I can accept from a supplier?", "groups": ["all"], "gold": ["employee_handbook.pdf#p3"], "expect": ["100"]}
+{"id": "q08", "question": "What is the minimum password length?", "groups": ["all"], "gold": ["it_security_policy.pdf#p1"], "expect": ["14 characters"]}
+{"id": "q09", "question": "I clicked a phishing link, who do I tell and how quickly?", "groups": ["all"], "gold": ["it_security_policy.pdf#p2"], "expect": ["1 hour"]}
+{"id": "q10", "question": "After how many minutes must a company laptop lock?", "groups": ["all"], "gold": ["it_security_policy.pdf#p1"], "expect": ["5 minutes"]}
+{"id": "q11", "question": "How is salary data classified?", "groups": ["all"], "gold": ["it_security_policy.pdf#p2"], "expect": ["Restricted"]}
+{"id": "q12", "question": "What is the nightly hotel cap in Europe?", "groups": ["all"], "gold": ["travel_and_expense_policy.pdf#p1"], "expect": ["350"]}
+{"id": "q13", "question": "Can I fly business class to a conference?", "groups": ["all"], "gold": ["travel_and_expense_policy.pdf#p1"], "expect": ["Vice President"]}
+{"id": "q14", "question": "How much is the daily meal per diem when travelling?", "groups": ["all"], "gold": ["travel_and_expense_policy.pdf#p2"], "expect": ["80"]}
+{"id": "q15", "question": "Within how many days must expense claims be submitted?", "groups": ["all"], "gold": ["travel_and_expense_policy.pdf#p2"], "expect": ["30 days"]}
+{"id": "q16", "question": "What is the dock to stock time at Port Klang?", "groups": ["all"], "gold": ["warehouse_sla.csv#row:Port Klang"], "expect": ["36"]}
+{"id": "q17", "question": "What is the order cutoff at the Changi Airfreight site?", "groups": ["all"], "gold": ["warehouse_sla.csv#row:Changi Airfreight"], "expect": ["4pm"]}
+{"id": "q18", "question": "Which on time target does the Cikarang warehouse have?", "groups": ["all"], "gold": ["warehouse_sla.csv#row:Cikarang"], "expect": ["95.5"]}
+{"id": "q19", "question": "What is the merit budget for this salary review?", "groups": ["hr"], "gold": ["compensation_guidelines.pdf#p1"], "expect": ["4.5"]}
+{"id": "q20", "question": "What is the salary band for a Senior Specialist?", "groups": ["hr"], "gold": ["salary_bands.csv#row:L3"], "expect": ["72000"]}
+{"id": "q21", "question": "What is the merit budget for this salary review?", "groups": ["all"], "gold": [], "expect": [], "restricted": true}
+{"id": "q22", "question": "What is the salary band for a Senior Specialist?", "groups": ["all"], "gold": [], "expect": [], "restricted": true}
+{"id": "q23", "question": "When should we fail over the tracking database?", "groups": ["engineering"], "gold": ["incident_runbook.pdf#p2"], "expect": ["5 minutes"]}
+{"id": "q24", "question": "How often do we post updates during a SEV1 incident?", "groups": ["engineering"], "gold": ["incident_runbook.pdf#p1"], "expect": ["30 minutes"]}
+{"id": "q25", "question": "What is the company car policy for sales staff?", "groups": ["all"], "gold": [], "expect": []}
+{"id": "q26", "question": "Does Harbourline offer a gym membership subsidy?", "groups": ["all"], "gold": [], "expect": []}
