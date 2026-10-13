@@ -1,0 +1,33 @@
+[project]
+name = "docbridge"
+version = "0.1.0"
+description = "Enterprise RAG pipeline: PDF and table ingestion, pgvector with access control, a LangGraph corrective retrieval loop and an evaluation harness"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Vaibhav Peddakadapa" }]
+dependencies = [
+    "langgraph>=1.0",
+    "google-genai>=1.30",
+    "numpy>=1.26",
+    "pypdf>=5.0",
+    "psycopg[binary]>=3.2",
+    "pgvector>=0.3",
+]
+
+[project.optional-dependencies]
+bigquery = ["google-cloud-bigquery>=3.25"]
+dev = ["pytest>=8", "fpdf2>=2.8"]
+
+[project.scripts]
+docbridge = "docbridge.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["docbridge*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

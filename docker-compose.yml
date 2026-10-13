@@ -1,0 +1,18 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: docbridge
+      POSTGRES_PASSWORD: docbridge
+      POSTGRES_DB: docbridge
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U docbridge"]
+      interval: 2s
+      retries: 20
+
+volumes:
+  pgdata:
