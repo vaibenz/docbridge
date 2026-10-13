@@ -1,0 +1,5 @@
+level,title,band_min_sgd,band_max_sgd
+L1,Associate,42000,55000
+L2,Specialist,55000,72000
+L3,Senior Specialist,72000,95000
+L4,Manager,95000,130000

@@ -1,0 +1,6 @@
+site,region,dock_to_stock_hours,order_cutoff,same_day_dispatch,on_time_target_pct
+Tuas,Singapore,24,2pm,yes,98.5
+Changi Airfreight,Singapore,8,4pm,yes,99.0
+Port Klang,Malaysia,36,12pm,no,97.0
+Laem Chabang,Thailand,48,11am,no,96.0
+Cikarang,Indonesia,48,11am,no,95.5

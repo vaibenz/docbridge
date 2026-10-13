@@ -1,0 +1,44 @@
+{
+  "employee_handbook.pdf": {
+    "groups": [
+      "all"
+    ],
+    "title": "Harbourline Logistics Employee Handbook"
+  },
+  "it_security_policy.pdf": {
+    "groups": [
+      "all"
+    ],
+    "title": "IT Security Policy"
+  },
+  "travel_and_expense_policy.pdf": {
+    "groups": [
+      "all"
+    ],
+    "title": "Travel and Expense Policy"
+  },
+  "compensation_guidelines.pdf": {
+    "groups": [
+      "hr"
+    ],
+    "title": "Compensation Guidelines (Restricted)"
+  },
+  "incident_runbook.pdf": {
+    "groups": [
+      "engineering"
+    ],
+    "title": "Platform Incident Runbook"
+  },
+  "warehouse_sla.csv": {
+    "groups": [
+      "all"
+    ],
+    "title": "Warehouse service levels by site"
+  },
+  "salary_bands.csv": {
+    "groups": [
+      "hr"
+    ],
+    "title": "Salary bands (Restricted)"
+  }
+}
