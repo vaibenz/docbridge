@@ -1,0 +1,67 @@
+"""Discovers sources in a folder, parses them, embeds new or changed chunks and upserts them.
+
+Access control comes from corpus/manifest.json, which lists the groups allowed
+to read each source. Sources missing from the manifest default to the most
+restrictive setting (no groups), so nothing leaks by accident.
+"""
+
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass
+from pathlib import Path
+
+from ..embed import Embedder
+from ..models import Chunk
+from ..store.base import VectorStore
+from .pdf import load_pdf
+from .tables import load_csv
+
+
+@dataclass
+class IngestReport:
+    sources: int
+    chunks: int
+    embedded: int
+    skipped_unchanged: int
+    removed: int
+
+
+def load_manifest(folder: Path) -> dict:
+    path = folder / "manifest.json"
+    return json.loads(path.read_text()) if path.exists() else {}
+
+
+def parse_folder(folder: Path) -> list[Chunk]:
+    manifest = load_manifest(folder)
+    chunks: list[Chunk] = []
+    for path in sorted(folder.iterdir()):
+        spec = manifest.get(path.name, {})
+        groups = tuple(spec.get("groups", ()))
+        title = spec.get("title", "")
+        if path.suffix.lower() == ".pdf":
+            chunks.extend(load_pdf(path, groups, title))
+        elif path.suffix.lower() == ".csv":
+            chunks.extend(load_csv(path, groups, title))
+    return chunks
+
+
+def ingest_folder(folder: str | Path, embedder: Embedder, store: VectorStore, batch_size: int = 64) -> IngestReport:
+    folder = Path(folder)
+    chunks = parse_folder(folder)
+    existing = store.content_hashes()
+    todo = [c for c in chunks if existing.get(c.chunk_id) != c.content_hash]
+    for start in range(0, len(todo), batch_size):
+        batch = todo[start:start + batch_size]
+        vectors = embedder.embed_documents([f"{c.title}\n{c.text}" for c in batch])
+        store.upsert(batch, vectors)
+    live_ids = {c.chunk_id for c in chunks}
+    stale = [cid for cid in existing if cid not in live_ids]
+    store.delete(stale)
+    return IngestReport(
+        sources=len({c.source for c in chunks}),
+        chunks=len(chunks),
+        embedded=len(todo),
+        skipped_unchanged=len(chunks) - len(todo),
+        removed=len(stale),
+    )
