@@ -2,10 +2,12 @@
 
 An enterprise RAG pipeline that turns a folder of PDFs and tables into an access controlled question answering service.
 
-* **Ingestion** of unstructured PDFs (page aware, boilerplate stripped, sentence aware chunks with overlap) and structured tables (CSV or a BigQuery query, one self describing chunk per row), with incremental re-ingestion by content hash.
-* **PostgreSQL + pgvector** storage with an HNSW index and a `groups` column, so document level access control is enforced inside the SQL query and restricted chunks never leave the database.
-* **A LangGraph corrective RAG loop**: retrieve, grade every chunk, rewrite the query and retry when nothing relevant comes back, and decline when retries run out instead of guessing.
-* **An evaluation harness** reporting recall@5, MRR, answer accuracy, groundedness, refusal accuracy and access leaks on a labelled question set.
+Most RAG demos skip the part that matters inside a company, which is who is allowed to see which document. I built DocBridge around that question, so access control happens in the database query itself instead of being filtered after retrieval.
+
+* Ingestion of unstructured PDFs (page aware, boilerplate stripped, sentence aware chunks with overlap) and structured tables (CSV or a BigQuery query, one self describing chunk per row), with incremental re-ingestion by content hash.
+* PostgreSQL + pgvector storage with an HNSW index and a `groups` column, so document level access control is enforced inside the SQL query and restricted chunks never leave the database.
+* A LangGraph corrective RAG loop: retrieve, grade every chunk, rewrite the query and retry when nothing relevant comes back, and decline when retries run out instead of guessing.
+* An evaluation harness reporting recall@5, MRR, answer accuracy, groundedness, refusal accuracy and access leaks on a labelled question set.
 
 Gemini provides embeddings, grading, rewriting and answers. Without credentials, deterministic offline stand ins (a feature hashing embedder and a lexical grader) keep everything runnable and testable.
 
@@ -28,7 +30,7 @@ flowchart LR
     PG <--> R
 ```
 
-## Quick start
+## Try it
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
@@ -89,7 +91,7 @@ Every user implicitly has the `all` group. A source missing from the manifest ge
 
 `eval/report-offline.md` is the baseline from the offline stand ins. The labelled set is small and was written alongside the corpus, so treat these numbers as a regression check, not a benchmark. Run with Gemini to get model based results.
 
-## Project layout
+## Where things live
 
 ```
 docbridge/
@@ -114,3 +116,7 @@ CI runs the full test suite and the evaluation against a real pgvector service c
 ## License
 
 MIT
+
+---
+
+If something here is unclear, broken, or just wrong, feel free to open an issue. I'm always happy to chat about it.
