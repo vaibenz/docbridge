@@ -93,13 +93,18 @@ class OfflineLLM:
 
     def generate(self, question: str, hits: Sequence[Hit]) -> str:
         q = set(normalize_tokens(self.rewrite(question, 0)))
-        scored = []
+        scored, seen = [], set()
         for i, hit in enumerate(hits, start=1):
             for sentence in split_sentences(hit.chunk.text):
                 toks = normalize_tokens(sentence)
-                if len(toks) < 4:  # skip headings
+                # Skip headings, and sentences already seen in an earlier chunk: chunks overlap
+                # by a sentence, so the same sentence can arrive twice.
+                if len(toks) < 4 or sentence in seen:
                     continue
-                scored.append((sum(1 for t in toks if t in q) / (len(toks) ** 0.5), i, sentence))
+                seen.add(sentence)
+                # Distinct query terms covered, so a sentence that repeats "days" three times
+                # does not beat one that covers more of the question.
+                scored.append((len(q & set(toks)) / (len(toks) ** 0.5), i, sentence))
         scored.sort(key=lambda x: x[0], reverse=True)
         best = [s for s in scored if s[0] > 0][:2]
         # Keep a second sentence only if it is nearly as relevant as the first.

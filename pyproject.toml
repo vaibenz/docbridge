@@ -13,6 +13,7 @@ dependencies = [
     "pypdf>=5.0",
     "psycopg[binary]>=3.2",
     "pgvector>=0.3",
+    "wordllama>=0.4",
 ]
 
 [project.optional-dependencies]

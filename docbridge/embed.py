@@ -75,6 +75,34 @@ class HashingEmbedder:
         return _l2(self._vec(text)[None, :])[0]
 
 
+class WordLlamaEmbedder:
+    """A small learned embedding model that runs on the CPU with no network.
+
+    WordLlama (256 dimensions) pools token embeddings distilled from a large
+    language model. It is far weaker than Gemini embeddings, but it is real
+    semantics ("vacation" lands near "annual leave"), its weights ship inside the
+    pip package, and it embeds thousands of passages a second. That makes it the
+    offline default and the dense half of the hybrid in tests and benchmarks.
+    """
+
+    def __init__(self, dim: int = 256):
+        from pathlib import Path
+
+        import wordllama
+        from wordllama import WordLlama
+
+        # The weights and tokenizer are inside the package; point the loader at them so it
+        # never tries to download anything.
+        self.model = WordLlama.load(cache_dir=Path(wordllama.__file__).parent, disable_download=True, trunc_dim=dim)
+        self.dim = dim
+
+    def embed_documents(self, texts: list[str]) -> np.ndarray:
+        return _l2(np.asarray(self.model.embed(texts, norm=True), dtype=np.float32))
+
+    def embed_query(self, text: str) -> np.ndarray:
+        return self.embed_documents([text])[0]
+
+
 class GeminiEmbedder:
     """Gemini embeddings with retrieval task types. Needs GOOGLE_API_KEY or Vertex AI settings."""
 
@@ -112,7 +140,16 @@ def has_gemini_credentials() -> bool:
 
 
 def default_embedder() -> Embedder:
+    """DOCBRIDGE_EMBEDDER picks gemini, wordllama or hashing; otherwise Gemini when
+    credentials exist, else WordLlama when installed, else the hashing stand in."""
     choice = os.environ.get("DOCBRIDGE_EMBEDDER")
-    if choice == "hashing" or (choice is None and not has_gemini_credentials()):
+    if choice == "hashing":
         return HashingEmbedder()
-    return GeminiEmbedder()
+    if choice == "gemini" or (choice is None and has_gemini_credentials()):
+        return GeminiEmbedder()
+    try:
+        return WordLlamaEmbedder()
+    except ImportError:
+        if choice == "wordllama":
+            raise
+        return HashingEmbedder()

@@ -23,6 +23,7 @@ from langgraph.graph import END, START, StateGraph
 from .embed import Embedder
 from .llm import IDK, LLM
 from .models import Hit
+from .retrieve import BM25Index, DenseRetriever, HybridRetriever, Retriever
 from .store.base import VectorStore
 
 PUBLIC_GROUP = "all"
@@ -57,10 +58,10 @@ class RagResult:
         return self.answer != IDK
 
 
-def build_graph(store: VectorStore, embedder: Embedder, llm: LLM, k: int = 5, max_rewrites: int = 2):
+def build_graph(retriever: Retriever, llm: LLM, k: int = 5, max_rewrites: int = 2):
     def retrieve(state: RagState) -> RagState:
         groups = sorted(set(state.get("groups", [])) | {PUBLIC_GROUP})
-        hits = store.search(embedder.embed_query(state["query"]), k, groups)
+        hits = retriever.search(state["query"], k, groups)
         return {"hits": hits, "steps": state.get("steps", []) + [f"retrieve:{state['query']}"]}
 
     def grade(state: RagState) -> RagState:
@@ -100,14 +101,29 @@ def build_graph(store: VectorStore, embedder: Embedder, llm: LLM, k: int = 5, ma
     return g.compile()
 
 
+def default_retriever(store: VectorStore, embedder: Embedder, mode: str = "hybrid") -> Retriever:
+    """dense, bm25 or hybrid. The BM25 index is built from what the store holds."""
+    dense = DenseRetriever(store, embedder)
+    if mode == "dense":
+        return dense
+    bm25 = BM25Index.from_chunks(store.all_chunks())
+    if mode == "bm25":
+        return bm25
+    # Plain RRF: weights tuned on SQuAD favour BM25 heavily because SQuAD questions reuse the
+    # paragraph's words; real questions paraphrase more, so the default does not bake that in.
+    return HybridRetriever([bm25, dense])
+
+
 class RagPipeline:
-    def __init__(self, store: VectorStore, embedder: Embedder, llm: LLM, k: int = 5, max_rewrites: int = 2):
+    def __init__(self, store: VectorStore, embedder: Embedder, llm: LLM, k: int = 5, max_rewrites: int = 2,
+                 retriever: Retriever | None = None, mode: str = "hybrid"):
         self.store, self.embedder, self.llm, self.k = store, embedder, llm, k
-        self.graph = build_graph(store, embedder, llm, k=k, max_rewrites=max_rewrites)
+        self.retriever = retriever or default_retriever(store, embedder, mode)
+        self.graph = build_graph(self.retriever, llm, k=k, max_rewrites=max_rewrites)
 
     def retrieve_only(self, question: str, groups: Sequence[str]) -> list[Hit]:
         groups = sorted(set(groups) | {PUBLIC_GROUP})
-        return self.store.search(self.embedder.embed_query(question), self.k, groups)
+        return self.retriever.search(question, self.k, groups)
 
     def ask(self, question: str, groups: Sequence[str] = ()) -> RagResult:
         start = time.perf_counter()

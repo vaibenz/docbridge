@@ -8,3 +8,4 @@ build/
 dist/
 .env
 eval/report*.json
+bench/.cache/

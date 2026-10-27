@@ -39,3 +39,6 @@ class MemoryStore:
 
     def count(self) -> int:
         return len(self._chunks)
+
+    def all_chunks(self) -> list[Chunk]:
+        return list(self._chunks.values())

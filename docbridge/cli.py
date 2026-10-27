@@ -21,13 +21,13 @@ from .store import default_store
 DEFAULT_CORPUS = Path(__file__).resolve().parents[1] / "corpus"
 
 
-def build_pipeline(corpus: Path | None = None, k: int = 5) -> RagPipeline:
+def build_pipeline(corpus: Path | None = None, k: int = 5, mode: str = "hybrid") -> RagPipeline:
     embedder = default_embedder()
     store = default_store(dim=embedder.dim)
     # The in memory store starts empty in every process, so ingest on startup.
     # With pgvector this is incremental: unchanged chunks are skipped by content hash.
     ingest_folder(corpus or DEFAULT_CORPUS, embedder, store)
-    return RagPipeline(store, embedder, default_llm(), k=k)
+    return RagPipeline(store, embedder, default_llm(), k=k, mode=mode)
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -41,12 +41,14 @@ def main(argv: list[str] | None = None) -> None:
     p_ask.add_argument("question")
     p_ask.add_argument("--groups", default="all", help="comma separated groups the asker belongs to")
     p_ask.add_argument("--corpus", type=Path, default=DEFAULT_CORPUS)
+    p_ask.add_argument("--retriever", choices=["hybrid", "dense", "bm25"], default="hybrid")
 
     p_eval = sub.add_parser("eval", help="run the evaluation set")
     p_eval.add_argument("questions", type=Path)
     p_eval.add_argument("--corpus", type=Path, default=DEFAULT_CORPUS)
     p_eval.add_argument("--out", type=Path)
     p_eval.add_argument("-k", type=int, default=5)
+    p_eval.add_argument("--retriever", choices=["hybrid", "dense", "bm25"], default="hybrid")
 
     args = parser.parse_args(argv)
     if args.cmd == "ingest":
@@ -54,13 +56,13 @@ def main(argv: list[str] | None = None) -> None:
         report = ingest_folder(args.folder, embedder, default_store(dim=embedder.dim))
         print(json.dumps(report.__dict__, indent=2))
     elif args.cmd == "ask":
-        result = build_pipeline(args.corpus).ask(args.question, args.groups.split(","))
+        result = build_pipeline(args.corpus, mode=args.retriever).ask(args.question, args.groups.split(","))
         print(result.answer)
         for ref in result.citations:
             print(f"  source: {ref}")
         print(f"  steps: {' > '.join(result.steps)}")
     elif args.cmd == "eval":
-        pipeline = build_pipeline(args.corpus, k=args.k)
+        pipeline = build_pipeline(args.corpus, k=args.k, mode=args.retriever)
         report = evaluate(pipeline, load_items(args.questions))
         print(json.dumps(report["summary"], indent=2))
         if args.out:

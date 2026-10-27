@@ -95,5 +95,10 @@ class PgVectorStore:
     def count(self) -> int:
         return self.conn.execute(f"SELECT count(*) FROM {self.table}").fetchone()[0]
 
+    def all_chunks(self) -> list[Chunk]:
+        rows = self.conn.execute(f"SELECT source, location, idx, title, kind, body, groups FROM {self.table}").fetchall()
+        return [Chunk(source=r[0], location=r[1], index=r[2], title=r[3], kind=r[4], text=r[5], groups=tuple(r[6]))
+                for r in rows]
+
     def close(self) -> None:
         self.conn.close()
