@@ -32,3 +32,7 @@ jobs:
       - run: pytest -q
       - name: Evaluation on pgvector (offline models)
         run: docbridge eval eval/questions.jsonl --out eval/report-ci.md
+      - name: Prompt injection red team (offline models)
+        run: docbridge redteam --out redteam/report-ci.md
+      - name: Retrieval benchmark on SQuAD 2.0 (offline retrievers)
+        run: python bench/squad.py --out bench/results-ci.md

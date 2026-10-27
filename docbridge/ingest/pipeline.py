@@ -8,7 +8,7 @@ restrictive setting (no groups), so nothing leaks by accident.
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from ..embed import Embedder
@@ -16,6 +16,8 @@ from ..models import Chunk
 from ..store.base import VectorStore
 from .pdf import load_pdf
 from .tables import load_csv
+from .text import load_text
+from ..security import injection_score
 
 
 @dataclass
@@ -25,6 +27,7 @@ class IngestReport:
     embedded: int
     skipped_unchanged: int
     removed: int
+    quarantined: list[dict] = field(default_factory=list)
 
 
 def load_manifest(folder: Path) -> dict:
@@ -43,12 +46,31 @@ def parse_folder(folder: Path) -> list[Chunk]:
             chunks.extend(load_pdf(path, groups, title))
         elif path.suffix.lower() == ".csv":
             chunks.extend(load_csv(path, groups, title))
+        elif path.suffix.lower() in (".md", ".txt"):
+            chunks.extend(load_text(path, groups, title))
     return chunks
 
 
-def ingest_folder(folder: str | Path, embedder: Embedder, store: VectorStore, batch_size: int = 64) -> IngestReport:
+def screen(chunks: list[Chunk]) -> tuple[list[Chunk], list[dict]]:
+    """Splits chunks into those safe to index and those that look like prompt injection.
+    Quarantined chunks are not indexed; the report lists them for a person to review."""
+    keep, held = [], []
+    for c in chunks:
+        verdict = injection_score(c.text)
+        if verdict.suspicious:
+            held.append({"chunk_id": c.chunk_id, "reasons": list(verdict.reasons), "text": c.text[:200]})
+        else:
+            keep.append(c)
+    return keep, held
+
+
+def ingest_folder(folder: str | Path, embedder: Embedder, store: VectorStore, batch_size: int = 64,
+                  screening: bool = True) -> IngestReport:
     folder = Path(folder)
     chunks = parse_folder(folder)
+    quarantined: list[dict] = []
+    if screening:
+        chunks, quarantined = screen(chunks)
     existing = store.content_hashes()
     todo = [c for c in chunks if existing.get(c.chunk_id) != c.content_hash]
     for start in range(0, len(todo), batch_size):
@@ -64,4 +86,5 @@ def ingest_folder(folder: str | Path, embedder: Embedder, store: VectorStore, ba
         embedded=len(todo),
         skipped_unchanged=len(chunks) - len(todo),
         removed=len(stale),
+        quarantined=quarantined,
     )

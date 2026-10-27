@@ -50,6 +50,10 @@ def main(argv: list[str] | None = None) -> None:
     p_eval.add_argument("-k", type=int, default=5)
     p_eval.add_argument("--retriever", choices=["hybrid", "dense", "bm25"], default="hybrid")
 
+    p_red = sub.add_parser("redteam", help="run the prompt injection red team suite")
+    p_red.add_argument("--models", default="echo,offline", help="comma separated: echo, offline, gemini")
+    p_red.add_argument("--out", type=Path)
+
     args = parser.parse_args(argv)
     if args.cmd == "ingest":
         embedder = default_embedder()
@@ -61,6 +65,14 @@ def main(argv: list[str] | None = None) -> None:
         for ref in result.citations:
             print(f"  source: {ref}")
         print(f"  steps: {' > '.join(result.steps)}")
+    elif args.cmd == "redteam":
+        from . import redteam
+
+        report = redteam.run(args.models.split(","))
+        md = redteam.to_markdown(report)
+        print(md)
+        if args.out:
+            args.out.write_text(md)
     elif args.cmd == "eval":
         pipeline = build_pipeline(args.corpus, k=args.k, mode=args.retriever)
         report = evaluate(pipeline, load_items(args.questions))

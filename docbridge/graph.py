@@ -24,6 +24,7 @@ from .embed import Embedder
 from .llm import IDK, LLM
 from .models import Hit
 from .retrieve import BM25Index, DenseRetriever, HybridRetriever, Retriever
+from .security import guard_answer
 from .store.base import VectorStore
 
 PUBLIC_GROUP = "all"
@@ -38,6 +39,7 @@ class RagState(TypedDict, total=False):
     relevant: list[Hit]
     answer: str
     citations: list[str]
+    removed: list[str]
     steps: list[str]
 
 
@@ -52,13 +54,15 @@ class RagResult:
     final_query: str
     steps: list[str]
     latency_ms: float
+    removed: list[str] = None
 
     @property
     def answered(self) -> bool:
         return self.answer != IDK
 
 
-def build_graph(retriever: Retriever, llm: LLM, k: int = 5, max_rewrites: int = 2):
+def build_graph(retriever: Retriever, llm: LLM, k: int = 5, max_rewrites: int = 2, guard: bool = True,
+                allowed_domains: Sequence[str] = ()):
     def retrieve(state: RagState) -> RagState:
         groups = sorted(set(state.get("groups", [])) | {PUBLIC_GROUP})
         hits = retriever.search(state["query"], k, groups)
@@ -81,9 +85,15 @@ def build_graph(retriever: Retriever, llm: LLM, k: int = 5, max_rewrites: int = 
     def generate(state: RagState) -> RagState:
         relevant = state["relevant"]
         answer = llm.generate(state["question"], relevant)
+        steps = state["steps"] + ["generate"]
+        removed: list[str] = []
+        if guard:
+            answer, removed = guard_answer(answer, allowed_domains)
+            if removed:
+                steps.append(f"guard:removed {len(removed)}")
         cited = sorted({int(n) for n in re.findall(r"\[(\d+)\]", answer) if 0 < int(n) <= len(relevant)})
         return {"answer": answer, "citations": [relevant[n - 1].chunk.ref for n in cited],
-                "steps": state["steps"] + ["generate"]}
+                "removed": removed, "steps": steps}
 
     def fallback(state: RagState) -> RagState:
         return {"answer": IDK, "citations": [], "steps": state["steps"] + ["fallback"]}
@@ -116,10 +126,12 @@ def default_retriever(store: VectorStore, embedder: Embedder, mode: str = "hybri
 
 class RagPipeline:
     def __init__(self, store: VectorStore, embedder: Embedder, llm: LLM, k: int = 5, max_rewrites: int = 2,
-                 retriever: Retriever | None = None, mode: str = "hybrid"):
+                 retriever: Retriever | None = None, mode: str = "hybrid", guard: bool = True,
+                 allowed_domains: Sequence[str] = ()):
         self.store, self.embedder, self.llm, self.k = store, embedder, llm, k
         self.retriever = retriever or default_retriever(store, embedder, mode)
-        self.graph = build_graph(self.retriever, llm, k=k, max_rewrites=max_rewrites)
+        self.graph = build_graph(self.retriever, llm, k=k, max_rewrites=max_rewrites, guard=guard,
+                                 allowed_domains=allowed_domains)
 
     def retrieve_only(self, question: str, groups: Sequence[str]) -> list[Hit]:
         groups = sorted(set(groups) | {PUBLIC_GROUP})
@@ -139,4 +151,5 @@ class RagPipeline:
             final_query=state.get("query", question),
             steps=state.get("steps", []),
             latency_ms=(time.perf_counter() - start) * 1000,
+            removed=state.get("removed", []),
         )
