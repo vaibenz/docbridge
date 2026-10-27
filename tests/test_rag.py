@@ -84,6 +84,7 @@ def test_pgvector_store_round_trip():
     assert [h.chunk.source for h in store.search(np.array([1, 0, 0], dtype=np.float32), 5, ["all"])] == ["a.pdf"]
     assert len(store.search(np.array([1, 0, 0], dtype=np.float32), 5, ["all", "hr"])) == 2
     assert set(store.content_hashes()) == {c.chunk_id for c in chunks}
+    assert sorted(c.source for c in store.all_chunks()) == ["a.pdf", "b.pdf"]
     store.delete([chunks[1].chunk_id])
     assert store.count() == 1
     store.conn.execute("DROP TABLE docbridge_test")

@@ -90,3 +90,16 @@ def test_wordllama_captures_paraphrase():
     q = emb.embed_query("How many vacation days do employees get?")
     assert float(docs[0] @ q) > float(docs[1] @ q)
     assert np.allclose(np.linalg.norm(docs, axis=1), 1.0, atol=1e-5)
+
+
+def test_llm_reranker_reorders_by_score_and_keeps_order_on_ties():
+    from docbridge.retrieve import LLMReranker
+
+    class Scorer:
+        def score_passages(self, question, passages):
+            return [10.0 if "Laptops" in p else 1.0 for p in passages]
+
+    first = _Fixed([Hit(d, 1.0) for d in DOCS if d.groups == ("all",)])
+    out = LLMReranker(first, Scorer(), candidates=10).search("q", 2, ["all"])
+    assert [h.chunk.source for h in out] == ["d.pdf", "a.pdf"]
+    assert out[0].meta["rerank_score"] == 10.0
