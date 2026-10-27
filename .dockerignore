@@ -1,0 +1,5 @@
+.venv
+.git
+bench/.cache
+**/__pycache__
+eval/*.json

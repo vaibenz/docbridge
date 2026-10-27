@@ -1,0 +1,5 @@
+{
+  "users": {"hr.lead@harbourline.example": ["hr"]},
+  "domains": {"harbourline.example": ["staff"]},
+  "admins": ["ops@harbourline.example"]
+}

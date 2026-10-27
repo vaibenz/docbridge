@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DocBridge</title>
+<style>
+  :root { --bg:#f7f7f5; --card:#fff; --ink:#1d1f23; --muted:#646a73; --line:#e3e3df; --accent:#1f6f5c; --accent-ink:#fff; --warn:#8a4b00; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#141518; --card:#1d1f23; --ink:#ececea; --muted:#9aa0a8; --line:#2c2f35; --accent:#5fb89f; --accent-ink:#0d1210; --warn:#e0a35c; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width:760px; margin:0 auto; padding:40px 16px 64px; }
+  header { display:flex; justify-content:space-between; align-items:baseline; gap:12px; flex-wrap:wrap; }
+  h1 { font-size:22px; margin:0; letter-spacing:-0.01em; }
+  .who { color:var(--muted); font-size:14px; }
+  p.lede { color:var(--muted); margin:6px 0 24px; }
+  form { display:flex; gap:8px; }
+  input[type=text] { flex:1; min-width:0; padding:12px 14px; border:1px solid var(--line); border-radius:10px; background:var(--card); color:var(--ink); font:inherit; }
+  button { padding:12px 18px; border:0; border-radius:10px; background:var(--accent); color:var(--accent-ink); font:inherit; font-weight:600; cursor:pointer; }
+  button:disabled { opacity:.6; cursor:wait; }
+  .dev { margin:12px 0 0; font-size:14px; color:var(--muted); display:flex; gap:14px; flex-wrap:wrap; align-items:center; }
+  .card { margin-top:24px; background:var(--card); border:1px solid var(--line); border-radius:14px; padding:18px 20px; }
+  .answer { white-space:pre-wrap; }
+  .declined { color:var(--warn); }
+  .cites { margin-top:14px; display:flex; gap:6px; flex-wrap:wrap; }
+  .cite { font-size:13px; padding:3px 9px; border:1px solid var(--line); border-radius:999px; color:var(--muted); }
+  details { margin-top:12px; font-size:13px; color:var(--muted); }
+  code { font:12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; word-break:break-word; }
+  .err { color:var(--warn); }
+  #signin { margin-top:16px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>DocBridge</h1>
+    <span class="who" id="who"></span>
+  </header>
+  <p class="lede">Ask about company policy. Answers come only from documents you are allowed to read, with sources.</p>
+  <div id="signin" hidden></div>
+  <form id="ask">
+    <input type="text" id="q" placeholder="How much annual leave do I get?" autocomplete="off" maxlength="1000" required>
+    <button id="go">Ask</button>
+  </form>
+  <div class="dev" id="dev" hidden>
+    <span>Development mode, asking as:</span>
+    <label><input type="checkbox" value="hr"> hr</label>
+    <label><input type="checkbox" value="engineering"> engineering</label>
+  </div>
+  <div id="out"></div>
+</main>
+<script>
+// Answers are inserted with textContent, never innerHTML: answers are built from
+// documents anyone may have written, so they are treated as untrusted text.
+let token = null, mode = "dev";
+const $ = id => document.getElementById(id);
+
+function headers() {
+  const h = {"Content-Type": "application/json"};
+  if (token) h["Authorization"] = "Bearer " + token;
+  if (mode === "dev") h["X-Dev-Groups"] = [...document.querySelectorAll("#dev input:checked")].map(i => i.value).join(",");
+  return h;
+}
+
+async function whoami() {
+  const r = await fetch("/me", {headers: headers()});
+  if (r.ok) { const me = await r.json(); $("who").textContent = (me.email || me.subject) + " · " + me.groups.join(", "); }
+}
+
+function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+
+$("ask").addEventListener("submit", async e => {
+  e.preventDefault();
+  $("go").disabled = true;
+  const card = el("div", "card");
+  try {
+    const r = await fetch("/ask", {method: "POST", headers: headers(), body: JSON.stringify({question: $("q").value})});
+    const data = await r.json();
+    if (!r.ok) { card.append(el("div", "err", data.detail || ("Error " + r.status))); }
+    else {
+      card.append(el("div", "answer" + (data.answered ? "" : " declined"), data.answer));
+      if (data.citations.length) {
+        const c = el("div", "cites");
+        data.citations.forEach(ref => c.append(el("span", "cite", ref)));
+        card.append(c);
+      }
+      const d = el("details"); d.append(el("summary", null, `How this was answered (${data.latency_ms} ms)`));
+      d.append(el("code", null, data.steps.join("  ›  ")));
+      card.append(d);
+    }
+  } catch (err) { card.append(el("div", "err", "Could not reach the server.")); }
+  $("out").prepend(card);
+  $("go").disabled = false;
+});
+document.querySelectorAll("#dev input").forEach(i => i.addEventListener("change", whoami));
+
+(async () => {
+  const cfg = await (await fetch("/config")).json();
+  mode = cfg.auth;
+  if (mode === "dev") { $("dev").hidden = false; whoami(); return; }
+  if (!cfg.google_client_id) { $("who").textContent = "Sign in is not configured"; return; }
+  const s = document.createElement("script");
+  s.src = "https://accounts.google.com/gsi/client";
+  s.onload = () => {
+    google.accounts.id.initialize({client_id: cfg.google_client_id, callback: resp => { token = resp.credential; $("signin").hidden = true; whoami(); }});
+    $("signin").hidden = false;
+    google.accounts.id.renderButton($("signin"), {theme: "outline", size: "large"});
+  };
+  document.head.append(s);
+})();
+</script>
+</body>
+</html>
