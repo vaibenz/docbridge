@@ -118,10 +118,25 @@ def make_llm(model: str, spotlighting: bool):
     return GeminiLLM(spotlighting=spotlighting)
 
 
-def run(models: Sequence[str], embedder: Embedder | None = None, attacks: list[dict] | None = None) -> dict:
+def _load_progress(path: Path | None) -> dict:
+    if not path or not path.exists():
+        return {}
+    done = {}
+    for line in path.read_text().splitlines():
+        if line.strip():
+            r = json.loads(line)
+            done[(r["model"], r["config"], r["id"])] = r["row"]
+    return done
+
+
+def run(models: Sequence[str], embedder: Embedder | None = None, attacks: list[dict] | None = None,
+        progress: Path | None = None) -> dict:
+    """With `progress`, every finished attack is appended to that file, and attacks already
+    in it are skipped, so a run stopped by an overloaded or rate limited model resumes."""
     embedder = embedder or default_embedder()
     attacks = attacks or load_attacks()
     results = {}
+    done = _load_progress(progress)
     with tempfile.TemporaryDirectory() as t:
         tmp = Path(t)
         corpus = _base_corpus(tmp)
@@ -142,6 +157,10 @@ def run(models: Sequence[str], embedder: Embedder | None = None, attacks: list[d
                 llm = make_llm(model, cfg.spotlighting)
                 rows = []
                 for a in attacks:
+                    key = (model, cfg.name, a["id"])
+                    if key in done:
+                        rows.append(done[key])
+                        continue
                     chunks = planted[a["id"]]
                     held = []
                     if chunks and cfg.screening:
@@ -172,8 +191,13 @@ def run(models: Sequence[str], embedder: Embedder | None = None, attacks: list[d
                         outcome = "planted text not used"
                     else:
                         outcome = "model did not comply"
-                    rows.append({"id": a["id"], "category": a["category"], "success": success,
-                                 "outcome": outcome, "answer": out.answer})
+                    row = {"id": a["id"], "category": a["category"], "success": success,
+                           "outcome": outcome, "answer": out.answer}
+                    rows.append(row)
+                    if progress:
+                        progress.parent.mkdir(parents=True, exist_ok=True)
+                        with progress.open("a") as f:
+                            f.write(json.dumps({"model": model, "config": cfg.name, "id": a["id"], "row": row}) + "\n")
                 results[(model, cfg.name)] = rows
     return {"attacks": attacks, "results": results}
 

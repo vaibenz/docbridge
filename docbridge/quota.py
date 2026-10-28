@@ -54,8 +54,11 @@ def _retry_delay(err: Exception) -> float | None:
     return float(m.group(1) or m.group(2))
 
 
-def with_backoff(call: Callable[[], T], attempts: int = 8, sleep: Callable[[float], None] | None = None) -> T:
-    """Runs `call`, waiting and retrying on 429 and 5xx. A daily quota is not worth waiting for."""
+def with_backoff(call: Callable[[], T], attempts: int = 12, sleep: Callable[[float], None] | None = None) -> T:
+    """Runs `call`, waiting and retrying on 429 and 5xx. A daily quota is not worth waiting for.
+
+    Waits double from 2 s up to 2 minutes, so a model that is overloaded for a while
+    (503, "high demand") gets about 15 minutes to recover before the call gives up."""
     sleep = sleep or time.sleep
     delay = 2.0
     for attempt in range(attempts):
@@ -70,9 +73,10 @@ def with_backoff(call: Callable[[], T], attempts: int = 8, sleep: Callable[[floa
                     "Gemini's daily free quota is used up. Progress is cached: run the same command "
                     "tomorrow and it carries on where it stopped.") from e
             wait = _retry_delay(e) or delay
-            print(f"  rate limited ({code}), waiting {wait:.0f} s", flush=True)
+            reason = "rate limited" if code == 429 else "server busy"
+            print(f"  {reason} ({code}), waiting {wait:.0f} s", flush=True)
             sleep(wait + 1)
-            delay = min(delay * 2, 60)
+            delay = min(delay * 2, 120)
     raise AssertionError("unreachable")
 
 

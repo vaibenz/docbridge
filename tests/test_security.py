@@ -79,3 +79,23 @@ def test_red_team_structural_guarantees(embedder):
     assert by_cat(full, "exfiltration") == 0
     assert by_cat(full, "phishing_link") == 0
     assert by_cat(full, "image_exfiltration") == 0
+
+
+def test_red_team_resumes_from_saved_progress(tmp_path, embedder):
+    from docbridge import redteam
+
+    attacks = redteam.load_attacks()[:3]
+    progress = tmp_path / "progress.jsonl"
+    first = redteam.run(["echo"], embedder=embedder, attacks=attacks, progress=progress)
+    lines = progress.read_text().splitlines()
+    assert len(lines) == 3 * 4  # three attacks, four configurations for echo
+    # Tamper with a saved row: a resumed run must use it rather than run the attack again.
+    import json
+    rows = [json.loads(l) for l in lines]
+    rows[0]["row"]["outcome"] = "from progress file"
+    progress.write_text("".join(json.dumps(r) + "\n" for r in rows))
+    again = redteam.run(["echo"], embedder=embedder, attacks=attacks, progress=progress)
+    key = ("echo", rows[0]["config"])
+    assert again["results"][key][0]["outcome"] == "from progress file"
+    assert len(progress.read_text().splitlines()) == 12  # nothing new appended
+    assert first["results"].keys() == again["results"].keys()

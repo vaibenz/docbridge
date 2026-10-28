@@ -54,6 +54,7 @@ def main(argv: list[str] | None = None) -> None:
     p_red = sub.add_parser("redteam", help="run the prompt injection red team suite")
     p_red.add_argument("--models", default="echo,offline", help="comma separated: echo, offline, gemini")
     p_red.add_argument("--out", type=Path)
+    p_red.add_argument("--fresh", action="store_true", help="ignore saved progress and run every attack again")
 
     args = parser.parse_args(argv)
     # Gemini embeddings are cached on disk, so repeated runs and runs that hit a quota resume cheaply.
@@ -71,7 +72,13 @@ def main(argv: list[str] | None = None) -> None:
     elif args.cmd == "redteam":
         from . import redteam
 
-        report = redteam.run(args.models.split(","))
+        # Gemini runs are slow and can be interrupted by quotas or an overloaded model, so finished
+        # attacks are saved and a rerun picks up where the last one stopped.
+        progress = Path.home() / ".cache" / "docbridge" / f"redteam-{args.models.replace(',', '-')}.jsonl"
+        if args.fresh and progress.exists():
+            progress.unlink()
+        uses_gemini = "gemini" in args.models.split(",")
+        report = redteam.run(args.models.split(","), progress=progress if uses_gemini else None)
         md = redteam.to_markdown(report)
         print(md)
         if args.out:
