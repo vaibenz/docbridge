@@ -179,21 +179,34 @@ class GeminiLLM:
 
         self.pacer = Pacer(int(os.environ.get("DOCBRIDGE_GEMINI_PER_MIN", 8)))
         self.client = genai.Client()
-        self.model = model or os.environ.get("DOCBRIDGE_LLM_MODEL", "gemini-2.5-flash")
+        self.model = model or os.environ.get("DOCBRIDGE_LLM_MODEL", "gemini-3.8-flash")
         self.spotlighting = spotlighting
+        self._thinking_off = True
 
     def _text(self, prompt: str, json_mode: bool = False) -> str:
         from google.genai import types
 
-        config = types.GenerateContentConfig(
-            temperature=0,
-            response_mime_type="application/json" if json_mode else "text/plain",
-            thinking_config=types.ThinkingConfig(thinking_budget=0),
-        )
         from .quota import with_backoff
 
+        def config():
+            kw = dict(temperature=0, response_mime_type="application/json" if json_mode else "text/plain")
+            if self._thinking_off:
+                # These are short classification and extraction jobs; thinking adds latency and cost.
+                kw["thinking_config"] = types.ThinkingConfig(thinking_budget=0)
+            return types.GenerateContentConfig(**kw)
+
         self.pacer.acquire()
-        resp = with_backoff(lambda: self.client.models.generate_content(model=self.model, contents=prompt, config=config))
+        try:
+            resp = with_backoff(lambda: self.client.models.generate_content(model=self.model, contents=prompt,
+                                                                            config=config()))
+        except Exception as e:
+            # Some newer models refuse a zero thinking budget. Fall back to the model's default once.
+            if getattr(e, "code", None) == 400 and self._thinking_off and "think" in str(e).lower():
+                self._thinking_off = False
+                resp = with_backoff(lambda: self.client.models.generate_content(model=self.model, contents=prompt,
+                                                                                config=config()))
+            else:
+                raise
         return (resp.text or "").strip()
 
     def grade_many(self, question: str, texts: Sequence[str]) -> list[bool]:
