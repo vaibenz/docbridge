@@ -69,7 +69,12 @@ def build_graph(retriever: Retriever, llm: LLM, k: int = 5, max_rewrites: int = 
         return {"hits": hits, "steps": state.get("steps", []) + [f"retrieve:{state['query']}"]}
 
     def grade(state: RagState) -> RagState:
-        relevant = [h for h in state["hits"] if llm.grade(state["question"], h.chunk.text)]
+        hits = state["hits"]
+        if hasattr(llm, "grade_many"):  # one request for all chunks when the model supports it
+            verdicts = llm.grade_many(state["question"], [h.chunk.text for h in hits]) if hits else []
+        else:
+            verdicts = [llm.grade(state["question"], h.chunk.text) for h in hits]
+        relevant = [h for h, ok in zip(hits, verdicts) if ok]
         return {"relevant": relevant, "steps": state["steps"] + [f"grade:{len(relevant)}/{len(state['hits'])}"]}
 
     def decide(state: RagState) -> str:

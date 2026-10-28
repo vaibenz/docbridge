@@ -158,10 +158,26 @@ Keep the answer under 80 words.
 Question: {question}"""
 
 
+GRADE_MANY_PROMPT = """You are grading retrieval results for a question answering system.
+Question: {question}
+
+{listing}
+
+For each numbered passage, does it contain information that helps answer the question?
+Reply as JSON: {{"relevant": [true or false for each passage, in order]}}"""
+
+
 class GeminiLLM:
+    """Gemini for grading, rewriting, answering and reranking. Paced to
+    DOCBRIDGE_GEMINI_PER_MIN requests a minute (8 by default, under the free tier),
+    with 429s retried for as long as the server asks."""
+
     def __init__(self, model: str | None = None, spotlighting: bool = True):
         from google import genai
 
+        from .quota import Pacer
+
+        self.pacer = Pacer(int(os.environ.get("DOCBRIDGE_GEMINI_PER_MIN", 8)))
         self.client = genai.Client()
         self.model = model or os.environ.get("DOCBRIDGE_LLM_MODEL", "gemini-2.5-flash")
         self.spotlighting = spotlighting
@@ -174,7 +190,21 @@ class GeminiLLM:
             response_mime_type="application/json" if json_mode else "text/plain",
             thinking_config=types.ThinkingConfig(thinking_budget=0),
         )
-        return (self.client.models.generate_content(model=self.model, contents=prompt, config=config).text or "").strip()
+        from .quota import with_backoff
+
+        self.pacer.acquire()
+        resp = with_backoff(lambda: self.client.models.generate_content(model=self.model, contents=prompt, config=config))
+        return (resp.text or "").strip()
+
+    def grade_many(self, question: str, texts: Sequence[str]) -> list[bool]:
+        """All of a retrieval's chunks in one request instead of one request each."""
+        listing = "\n\n".join(f"[{i}] {t}" for i, t in enumerate(texts, start=1))
+        try:
+            verdicts = json.loads(self._text(GRADE_MANY_PROMPT.format(question=question, listing=listing),
+                                             json_mode=True))["relevant"]
+            return [bool(v) for v in verdicts][:len(texts)] + [False] * max(0, len(texts) - len(verdicts))
+        except (json.JSONDecodeError, KeyError, TypeError):
+            return [False] * len(texts)
 
     def grade(self, question: str, text: str) -> bool:
         try:

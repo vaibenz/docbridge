@@ -104,32 +104,58 @@ class WordLlamaEmbedder:
 
 
 class GeminiEmbedder:
-    """Gemini embeddings with retrieval task types. Needs GOOGLE_API_KEY or Vertex AI settings."""
+    """Gemini embeddings with retrieval task types. Needs GOOGLE_API_KEY or Vertex AI settings.
 
-    def __init__(self, model: str = "gemini-embedding-001", dim: int = 768, batch_size: int = 100):
+    Paced to stay inside the free tier (DOCBRIDGE_GEMINI_EMBED_PER_MIN texts a
+    minute, 90 by default), retries 429s for as long as the server asks, and with
+    DOCBRIDGE_EMBED_CACHE set keeps every vector on disk, so a long run that hits a
+    daily cap resumes where it stopped.
+    """
+
+    def __init__(self, model: str = "gemini-embedding-001", dim: int = 768, batch_size: int = 50,
+                 cache_path: str | None = None, per_minute: int | None = None):
         from google import genai
+
+        from .quota import EmbeddingCache, Pacer
 
         self.client = genai.Client()
         self.model = model
         self.dim = dim
         self.batch_size = batch_size
+        self.pacer = Pacer(per_minute or int(os.environ.get("DOCBRIDGE_GEMINI_EMBED_PER_MIN", 90)))
+        path = cache_path or os.environ.get("DOCBRIDGE_EMBED_CACHE")
+        self.cache = EmbeddingCache(path) if path else None
 
     def _embed(self, texts: list[str], task_type: str) -> np.ndarray:
         from google.genai import types
 
-        vectors = []
-        for start in range(0, len(texts), self.batch_size):
-            resp = self.client.models.embed_content(
+        from .quota import EmbeddingCache, with_backoff
+
+        keys = [EmbeddingCache.key(self.model, self.dim, task_type, t) for t in texts]
+        found = self.cache.get_many(list(dict.fromkeys(keys))) if self.cache else {}
+        todo = [i for i, k in enumerate(keys) if k not in found]
+        for start in range(0, len(todo), self.batch_size):
+            idx = todo[start:start + self.batch_size]
+            self.pacer.acquire(len(idx))  # every text in a batch counts against the per minute quota
+            resp = with_backoff(lambda: self.client.models.embed_content(
                 model=self.model,
-                contents=texts[start:start + self.batch_size],
+                contents=[texts[i] for i in idx],
                 config=types.EmbedContentConfig(task_type=task_type, output_dimensionality=self.dim),
-            )
-            vectors.extend(e.values for e in resp.embeddings)
+            ))
+            new = {keys[i]: np.asarray(e.values, dtype=np.float32) for i, e in zip(idx, resp.embeddings)}
+            found.update(new)
+            if self.cache:
+                self.cache.put_many(new)
+            if len(todo) > self.batch_size:
+                print(f"  embedded {min(start + self.batch_size, len(todo))}/{len(todo)}", flush=True)
         # Truncated Gemini embeddings are not unit length, so normalise for cosine search.
-        return _l2(np.asarray(vectors, dtype=np.float32))
+        return _l2(np.stack([found[k] for k in keys]).astype(np.float32))
 
     def embed_documents(self, texts: list[str]) -> np.ndarray:
         return self._embed(texts, "RETRIEVAL_DOCUMENT")
+
+    def embed_queries(self, texts: list[str]) -> np.ndarray:
+        return self._embed(texts, "RETRIEVAL_QUERY")
 
     def embed_query(self, text: str) -> np.ndarray:
         return self._embed([text], "RETRIEVAL_QUERY")[0]

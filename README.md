@@ -57,9 +57,11 @@ docker compose up -d                 # Postgres 16 with pgvector
 cp .env.example .env                 # add GOOGLE_API_KEY (free from Google AI Studio)
 set -a && source .env && set +a
 docbridge ingest corpus/
-python bench/squad.py --gemini       # adds Gemini dense and Gemini hybrid rows
+python bench/squad.py --gemini       # Gemini rows, on a 400 question sample
 docbridge redteam --models echo,offline,gemini --out redteam/report-gemini.md
 ```
+
+The free tier embeds about 100 texts a minute and allows a few generation requests a minute, plus daily caps. Every Gemini call is paced to stay under that, waits out a 429 for as long as the server asks, and embeddings are cached on disk. A run that hits a daily cap stops with a message, and running the same command again carries on where it stopped. The benchmark's Gemini run uses a fixed sample of 400 test and 200 tuning questions, and every row in that run uses the same sample, so the rows stay comparable.
 
 ## Retrieval: what hybrid search buys, measured
 

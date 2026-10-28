@@ -1,7 +1,7 @@
 """Retrieval benchmark on SQuAD 2.0 (dev): human written questions over Wikipedia.
 
     python bench/squad.py                      # offline retrievers
-    python bench/squad.py --gemini             # also Gemini embeddings (needs GOOGLE_API_KEY)
+    python bench/squad.py --gemini             # Gemini too, on a sample of questions (needs GOOGLE_API_KEY)
 
 The dev set has 35 articles split into 1,204 paragraphs. Each paragraph becomes
 one chunk, and each of the 5,928 answerable questions has exactly one gold
@@ -97,6 +97,28 @@ def tune_weights(lexical, dense_retriever, tune, groups, restricted):
     return best[1], best[2]
 
 
+class PrecomputedQueries:
+    """Dense retrieval with query vectors embedded up front in batches, so a rate
+    limited API is called a few dozen times instead of once per question."""
+
+    def __init__(self, inner, vectors: dict):
+        self.inner, self.vectors = inner, vectors
+
+    def search(self, query, k, groups):
+        hits = self.inner.store.search(self.vectors[query], k, groups)
+        for h in hits:
+            h.meta["dense_score"] = h.score
+        return hits
+
+
+def sample(items, n):
+    """Every (len/n)th item: deterministic and spread across articles."""
+    if n <= 0 or n >= len(items):
+        return items
+    step = len(items) / n
+    return [items[int(i * step)] for i in range(n)]
+
+
 def dense(chunks, embedder):
     store = MemoryStore()
     t = time.perf_counter()
@@ -106,7 +128,9 @@ def dense(chunks, embedder):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--gemini", action="store_true", help="also run Gemini embeddings")
+    ap.add_argument("--gemini", action="store_true", help="also run Gemini embeddings, on a sample of questions")
+    ap.add_argument("--gemini-test", type=int, default=400, help="test questions in the Gemini sample")
+    ap.add_argument("--gemini-tune", type=int, default=200, help="tuning questions in the Gemini sample")
     ap.add_argument("--limit", type=int, default=0, help="only the first N questions")
     ap.add_argument("--out", type=Path, default=Path(__file__).resolve().parent / "results-squad.md")
     args = ap.parse_args()
@@ -119,6 +143,12 @@ def main():
     visible = [q for q in visible if q[3] >= 18]
     if args.limit:
         visible = visible[:args.limit]
+    if args.gemini:
+        # Gemini's free tier embeds about 100 texts a minute, so every row of this run uses the
+        # same deterministic sample of questions, which keeps the rows comparable with each other.
+        tune, visible = sample(tune, args.gemini_tune), sample(visible, args.gemini_test)
+        if args.out.name == "results-squad.md":
+            args.out = args.out.with_name("results-squad-gemini.md")
     restricted = {c.chunk_id for c in chunks if "all" not in c.groups}
     groups = ["all"]
     print(f"{len(chunks)} paragraphs ({len(restricted)} restricted), {len(tune)} tuning and {len(visible)} test "
@@ -142,8 +172,15 @@ def main():
     if args.gemini:
         from docbridge.embed import GeminiEmbedder
 
-        gem, secs = dense(chunks, GeminiEmbedder())
-        print(f"Gemini embedded {len(chunks)} paragraphs in {secs:.1f} s")
+        print(f"Gemini: embedding {len(chunks)} paragraphs and {len(tune) + len(visible)} questions, about "
+              f"{(len(chunks) + len(tune) + len(visible)) / 90:.0f} minutes on the free tier. Vectors are cached "
+              f"in bench/.cache, so if it stops, rerun and it carries on.")
+        embedder = GeminiEmbedder(cache_path=str(CACHE.parent / "embeddings.sqlite"))
+        store_retriever, secs = dense(chunks, embedder)
+        qs = [q[0] for q in tune + visible]
+        qvec = dict(zip(qs, embedder.embed_queries(qs)))
+        gem = PrecomputedQueries(store_retriever, qvec)
+        print(f"Gemini embeddings ready in {secs:.0f} s")
         systems += [("Gemini dense", gem), ("hybrid: BM25 + Gemini, plain RRF", HybridRetriever([bm25, gem]))]
         w, rrf_k = tune_weights(bm25, gem, tune, groups, restricted)
         systems.append((f"hybrid: BM25 + Gemini, tuned (dense weight {w}, k {rrf_k})",
@@ -158,7 +195,8 @@ def main():
     cols = list(rows[0])
     md = ["| " + " | ".join(cols) + " |", "|" + "---|" * len(cols)]
     md += ["| " + " | ".join(str(r[c]) for c in cols) + " |" for r in rows]
-    header = (f"# Retrieval on SQuAD 2.0 dev\n\n{len(chunks)} paragraphs, {len(restricted)} of them restricted. "
+    title = "Retrieval on SQuAD 2.0 dev" + (", with Gemini, on a sample of questions" if args.gemini else "")
+    header = (f"# {title}\n\n{len(chunks)} paragraphs, {len(restricted)} of them restricted. "
               f"Fusion weights tuned on {len(tune)} questions from articles 1 to 18; every row below is measured on "
               f"the {len(visible)} answerable questions from articles 19 to 35, asked by a user who may read the gold "
               f"paragraph but not the restricted ones.\n\n")

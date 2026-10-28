@@ -135,6 +135,10 @@ def run(models: Sequence[str], embedder: Embedder | None = None, attacks: list[d
             for cfg in CONFIGS:
                 if model != "gemini" and cfg.spotlighting:
                     continue  # spotlighting only changes a real model's prompt
+                if model == "gemini" and cfg not in CONFIGS[-2:]:
+                    # The earlier layers are structural and the echo model already measures them. A real
+                    # model is rate limited, so it runs the comparison only it can make: spotlighting off and on.
+                    continue
                 llm = make_llm(model, cfg.spotlighting)
                 rows = []
                 for a in attacks:

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 
 from .embed import default_embedder
@@ -55,6 +56,8 @@ def main(argv: list[str] | None = None) -> None:
     p_red.add_argument("--out", type=Path)
 
     args = parser.parse_args(argv)
+    # Gemini embeddings are cached on disk, so repeated runs and runs that hit a quota resume cheaply.
+    os.environ.setdefault("DOCBRIDGE_EMBED_CACHE", str(Path.home() / ".cache" / "docbridge" / "embeddings.sqlite"))
     if args.cmd == "ingest":
         embedder = default_embedder()
         report = ingest_folder(args.folder, embedder, default_store(dim=embedder.dim))
