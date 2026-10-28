@@ -74,7 +74,10 @@ def main(argv: list[str] | None = None) -> None:
 
         # Gemini runs are slow and can be interrupted by quotas or an overloaded model, so finished
         # attacks are saved and a rerun picks up where the last one stopped.
-        progress = Path.home() / ".cache" / "docbridge" / f"redteam-{args.models.replace(',', '-')}.jsonl"
+        # Keyed by the Gemini model too, so results from two different models never mix.
+        llm_model = os.environ.get("DOCBRIDGE_LLM_MODEL", "default")
+        progress = (Path.home() / ".cache" / "docbridge" /
+                    f"redteam-{args.models.replace(',', '-')}-{llm_model}.jsonl")
         if args.fresh and progress.exists():
             progress.unlink()
         uses_gemini = "gemini" in args.models.split(",")

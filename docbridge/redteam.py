@@ -210,7 +210,12 @@ def to_markdown(report: dict) -> str:
              f"{len(attacks)} attacks; the number in each cell is attacks that succeeded.", ""]
     models = list(dict.fromkeys(m for m, _ in report["results"]))
     for model in models:
-        lines += [f"## Model: {model}", "",
+        label = model
+        if model == "gemini":
+            import os
+
+            label = f"gemini ({os.environ.get('DOCBRIDGE_LLM_MODEL', 'gemini-3.8-flash')})"
+        lines += [f"## Model: {label}", "",
                   "| defences | " + " | ".join(f"{c} ({n_by_cat[c]})" for c in cats) + " | total |",
                   "|---|" + "---|" * (len(cats) + 1)]
         for (m, cfg), rows in report["results"].items():
