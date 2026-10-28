@@ -200,8 +200,10 @@ class GeminiLLM:
             resp = with_backoff(lambda: self.client.models.generate_content(model=self.model, contents=prompt,
                                                                             config=config()))
         except Exception as e:
-            # Some newer models refuse a zero thinking budget. Fall back to the model's default once.
-            if getattr(e, "code", None) == 400 and self._thinking_off and "think" in str(e).lower():
+            # Some models refuse a zero thinking budget, and not always with a message that says so
+            # (gemini-3.5-flash-lite answers a bare "invalid argument"). On a 400, retry once with the
+            # model's default thinking; if that fails too, the error is about something else and is raised.
+            if getattr(e, "code", None) == 400 and self._thinking_off:
                 self._thinking_off = False
                 resp = with_backoff(lambda: self.client.models.generate_content(model=self.model, contents=prompt,
                                                                                 config=config()))
