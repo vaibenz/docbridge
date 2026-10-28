@@ -80,7 +80,18 @@ What I take from it:
 * **SQuAD flatters keyword search.** Annotators wrote each question while looking at its paragraph, so questions reuse its words. BM25 alone is hard to beat at the top here.
 * **Plain RRF with a weak dense model hurts the top result.** It costs 10 points of recall@1, because the dense model's mistakes get an equal vote. It still finds the gold paragraph in the top 20 more often than either retriever alone, which is what a grader and generator downstream need.
 * **Weighting fixes the top without losing depth.** Tuned on held out articles, the hybrid matches BM25 at rank 1 and beats it at rank 5.
-* **The interesting run is with Gemini embeddings**, which are far stronger than WordLlama; `--gemini` adds those rows. The default in the app is plain RRF, because real users paraphrase far more than SQuAD annotators, and that is exactly where dense retrieval earns its vote.
+* **The interesting run is with Gemini embeddings**, which are far stronger than WordLlama. The results are below.
+
+**With Gemini embeddings** (`gemini-embedding-001`, run on a fixed sample of 400 test questions because of free tier limits; every row in that run uses the same sample):
+
+| retriever | recall@1 | recall@5 | recall@20 | MRR@20 |
+|---|---|---|---|---|
+| BM25 | 0.812 | 0.953 | 0.983 | 0.873 |
+| Gemini dense | 0.818 | 0.973 | **1.0** | 0.886 |
+| hybrid: BM25 + Gemini, plain RRF | **0.853** | 0.978 | **1.0** | **0.911** |
+| hybrid: BM25 + Gemini, tuned | 0.850 | **0.980** | **1.0** | **0.911** |
+
+With a strong dense model the hybrid beats both of its halves: 4 points of recall@1 over BM25 and every gold paragraph in the top 20. Tuning on held out articles chose equal weights, which is plain RRF, so the app's default is the right one once the dense side is good. With the weak offline model the same tuning gave dense retrieval a quarter of BM25's weight. The Gemini latencies in `bench/results-squad-gemini.md` are search time only; a live question also waits for one embedding request.
 
 BM25 is an in memory inverted index with numpy postings, checked against a slow textbook implementation in the tests. It answers in 40 µs here; the dense side is exact search over 1,204 vectors (pgvector's HNSW index takes over in Postgres).
 
