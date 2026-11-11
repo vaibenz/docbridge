@@ -99,6 +99,18 @@ def test_rate_limiter_refills():
     assert rl.allow("a") and not rl.allow("a")
 
 
+def test_rate_limiter_retry_after_is_the_real_wait():
+    now = [0.0]
+    rl = RateLimiter(rate=6, burst=1, clock=lambda: now[0])  # one token every 10 s
+    assert rl.retry_after("a") == 0
+    assert rl.allow("a") and not rl.allow("a")
+    assert rl.retry_after("a") == 10
+    now[0] += 7.5
+    assert rl.retry_after("a") == 3  # rounded up, so a client that waits this long gets in
+    now[0] += 3.0
+    assert rl.retry_after("a") == 0 and rl.allow("a")
+
+
 @pytest.fixture(scope="module")
 def client(keys, verifier):
     from docbridge.api import create_app
@@ -143,9 +155,12 @@ def test_rate_limit_returns_429(keys, verifier):
     c = TestClient(create_app(verifier=verifier, limiter=RateLimiter(rate=1, burst=2)))
     codes = [c.post("/ask", json={"question": "hotel cap?"}, headers=auth(keys)).status_code for _ in range(3)]
     assert codes == [200, 200, 429]
+    r = c.post("/ask", json={"question": "hotel cap?"}, headers=auth(keys))
+    assert r.status_code == 429 and 55 <= int(r.headers["Retry-After"]) <= 60  # 1 a minute: about a minute
 
 
 def test_web_app_and_question_limits(client, keys):
     assert "textContent" in client.get("/").text
     assert client.post("/ask", json={"question": ""}, headers=auth(keys)).status_code == 422
+    assert client.post("/ask", json={"question": " \n\t "}, headers=auth(keys)).status_code == 422
     assert client.post("/ask", json={"question": "x" * 1001}, headers=auth(keys)).status_code == 422

@@ -23,6 +23,7 @@ The server logs a warning on every request in that mode.
 from __future__ import annotations
 
 import json
+import math
 import os
 import threading
 import time
@@ -143,3 +144,11 @@ class RateLimiter:
                 return False
             self._buckets[key] = (tokens - 1, now)
             return True
+
+    def retry_after(self, key: str) -> int:
+        """Whole seconds until `key` has a token again (0 if it has one now), for a 429's Retry-After."""
+        now = self.clock()
+        with self._lock:
+            tokens, last = self._buckets.get(key, (float(self.burst), now))
+            tokens = min(self.burst, tokens + (now - last) * self.per_second)
+        return 0 if tokens >= 1 else math.ceil((1 - tokens) / self.per_second)

@@ -129,7 +129,7 @@ uvicorn docbridge.api:app                          # OpenID Connect, settings in
 * **Sign in** with any OpenID Connect provider. The web app uses Google sign in and sends the ID token as a bearer token. The server verifies it locally against the provider's published keys: signature, issuer, audience, expiry and subject.
   * Only asymmetric algorithms are accepted, checked before the key is even looked up. That refuses unsigned tokens (`alg: none`) and the HS256 confusion attack, where a token is signed with the public key as an HMAC secret. Both have tests.
 * **Groups** come from a `groups` claim (Entra ID and Okta can issue one) and from an access file mapping verified emails and email domains to groups, since Google's tokens carry none. Everyone gets `all`, and unknown users get nothing more.
-* **Rate limit:** a token bucket per user, `429` with `Retry-After` when it's empty.
+* **Rate limit:** a token bucket per user, `429` when it's empty, with a `Retry-After` that is the actual wait until the next token rather than a fixed guess. Blank questions are refused before they cost an embedding or an LLM call.
 * **Audit log:** one JSON line per question, with the hashed subject, groups, question, cited sources, whether the guard removed anything, and timing.
 * **Re-ingestion** (`POST /admin/ingest`, admins only) builds the new index and swaps it in, so questions in flight keep the old one. The response lists anything quarantined.
 * **The web app** is one HTML file. It renders answers with `textContent`, never as HTML, because answers are built from documents anyone may have written.

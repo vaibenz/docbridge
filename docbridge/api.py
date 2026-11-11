@@ -29,7 +29,7 @@ from pathlib import Path
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from .auth import AuthError, Principal, RateLimiter, TokenVerifier
 from .embed import default_embedder
@@ -45,6 +45,15 @@ STATIC = Path(__file__).resolve().parent / "static"
 
 class AskRequest(BaseModel):
     question: str = Field(min_length=1, max_length=1000)
+
+    @field_validator("question")
+    @classmethod
+    def not_blank(cls, v: str) -> str:
+        # "   " passes min_length but would spend an embedding call and an LLM call on nothing.
+        v = v.strip()
+        if not v:
+            raise ValueError("question is blank")
+        return v
 
 
 class Service:
@@ -117,7 +126,8 @@ def create_app(corpus: Path | None = None, verifier: TokenVerifier | None = None
     @app.post("/ask")
     def ask(body: AskRequest, request: Request, p: Principal = Depends(principal)):
         if not limiter.allow(p.subject):
-            raise HTTPException(429, "too many questions, slow down", headers={"Retry-After": "10"})
+            wait = max(1, limiter.retry_after(p.subject))
+            raise HTTPException(429, "too many questions, slow down", headers={"Retry-After": str(wait)})
         result = service.pipeline.ask(body.question, p.groups)
         audit.info(json.dumps({
             "event": "ask", "time": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
