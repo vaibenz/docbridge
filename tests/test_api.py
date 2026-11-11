@@ -46,9 +46,16 @@ def test_valid_token_gives_groups_from_claim_and_access_map(keys, verifier):
     assert "hr" in p.groups
 
 
-def test_unverified_email_is_not_used_for_groups(keys, verifier):
-    p = verifier.verify(make_token(keys[0], email="hr.lead@harbourline.example", email_verified=False))
-    assert p.groups == ("all",)
+@pytest.mark.parametrize("verified", [False, "false", "False", "no", 1, "", None])
+def test_unverified_email_is_not_used_for_groups(keys, verifier, verified):
+    token = make_token(keys[0], email="hr.lead@harbourline.example", email_verified=verified)
+    assert verifier.verify(token).groups == ("all",)
+
+
+@pytest.mark.parametrize("verified", [True, "true", "TRUE"])
+def test_verified_email_as_bool_or_string_is_used_for_groups(keys, verifier, verified):
+    token = make_token(keys[0], email="hr.lead@harbourline.example", email_verified=verified)
+    assert "hr" in verifier.verify(token).groups
 
 
 @pytest.mark.parametrize("change, message", [

@@ -111,12 +111,20 @@ class TokenVerifier:
                                 options={"require": ["exp", "iat", "iss", "aud", "sub"]})
         except jwt.PyJWTError as e:
             raise AuthError(str(e)) from e
-        email = claims.get("email") if claims.get("email_verified", False) else None
+        email = claims.get("email") if _is_verified(claims.get("email_verified")) else None
         token_groups = claims.get(self.groups_claim, [])
         if isinstance(token_groups, str):
             token_groups = token_groups.split()
         groups = {str(g) for g in token_groups} | self.access.groups_for(email) | {"all"}
         return Principal(claims["sub"], email, tuple(sorted(groups)))
+
+
+def _is_verified(value: object) -> bool:
+    """True only for a real JSON true, or the string "true" that some providers (Cognito) send.
+
+    A plain truthiness check would read the string "false" as verified and hand an
+    unverified email the groups the access file gives that address."""
+    return value is True or (isinstance(value, str) and value.strip().lower() == "true")
 
 
 def _discover_jwks(issuer: str) -> str:
