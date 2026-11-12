@@ -78,6 +78,10 @@ _BARE_URL = re.compile(r"\b(?:https?://|www\.)[^\s<>()\]]+", re.I)
 
 
 def _allowed(url: str, domains: Iterable[str]) -> bool:
+    # Browsers read a backslash in an http(s) URL as a slash, but urlparse does not:
+    # "https://evil.example\@docs.example/" is docs.example to Python and evil.example
+    # to a browser. Parse it the way the browser will.
+    url = url.replace("\\", "/")
     host = urlparse(url if "://" in url else f"https://{url}").hostname or ""
     return any(host == d or host.endswith("." + d) for d in domains)
 

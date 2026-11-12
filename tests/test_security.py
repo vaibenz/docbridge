@@ -45,6 +45,18 @@ def test_guard_removes_images_and_foreign_links():
     assert len(removed) == 4
 
 
+@pytest.mark.parametrize("url", [
+    "https://evil.example\\@intranet.harbourline.example/?q=leave",
+    "https://evil.example\\.harbourline.example/?q=leave",
+])
+def test_guard_parses_backslashes_like_a_browser(url):
+    # urlparse takes the host after the "@"; a browser turns "\\" into "/" and goes to evil.example.
+    for answer in (f"See {url} now.", f"See [policy]({url}) now."):
+        cleaned, removed = guard_answer(answer, allowed_domains=["harbourline.example"])
+        assert "evil.example" not in cleaned
+        assert len(removed) == 1
+
+
 def test_spotlight_boundary_is_random_and_wraps_every_passage():
     a, ba = spotlight(["one", "two"])
     b, bb = spotlight(["one", "two"])
