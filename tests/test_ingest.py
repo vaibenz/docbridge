@@ -24,6 +24,16 @@ def test_chunks_respect_budget_and_overlap():
         assert split_sentences(a)[-1] == split_sentences(b)[0]  # one sentence of overlap
 
 
+def test_a_sentence_longer_than_the_budget_is_split():
+    # Text with no sentence breaks, like a flattened PDF table, used to come back as one huge chunk.
+    run_on = " ".join(f"cell{i}" for i in range(500))
+    chunks = chunk_text(f"Intro sentence here. {run_on}. Closing sentence.", max_words=40, overlap_sentences=1)
+    assert len(chunks) > 10
+    assert all(len(c.split()) <= 80 for c in chunks)  # the budget plus at most one carried over piece
+    words = {w.rstrip(".") for w in " ".join(chunks).split()}
+    assert all(f"cell{i}" in words for i in range(500))  # nothing dropped
+
+
 def test_boilerplate_lines_removed():
     pages = ["Header\nPage one body.", "Header\nPage two body.", "Header\nPage three body."]
     assert strip_boilerplate(pages) == ["Page one body.", "Page two body.", "Page three body."]

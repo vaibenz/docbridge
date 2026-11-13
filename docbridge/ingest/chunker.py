@@ -17,8 +17,18 @@ def split_sentences(text: str) -> list[str]:
     return [s.strip() for s in _SENTENCE_END.split(text) if s.strip()]
 
 
+def _cap_sentence(sentence: str, max_words: int) -> list[str]:
+    """A "sentence" longer than the whole budget (a PDF table flattened to text, a list with no full stops)
+    is cut into consecutive runs of max_words words, so it cannot become one oversized chunk."""
+    words = sentence.split()
+    if len(words) <= max_words:
+        return [sentence]
+    return [" ".join(words[i:i + max_words]) for i in range(0, len(words), max_words)]
+
+
 def chunk_text(text: str, max_words: int = 90, overlap_sentences: int = 1) -> list[str]:
-    sentences = split_sentences(text)
+    """No chunk is longer than max_words plus the overlapped sentence carried over from the one before."""
+    sentences = [piece for s in split_sentences(text) for piece in _cap_sentence(s, max_words)]
     chunks: list[str] = []
     current: list[str] = []
     words = 0

@@ -138,7 +138,7 @@ A `Dockerfile` runs it on Cloud Run or anywhere else that runs containers.
 
 ## How the pieces work
 
-**Chunking.** PDF text is extracted page by page, lines that repeat on most pages (running headers and footers) are removed, and text is packed into chunks of about 90 words on sentence boundaries, with one sentence of overlap. Markdown is split at headings. Each chunk is cited as `source#page` (`employee_handbook.pdf#p2`), `source#section`, or a table row (`warehouse_sla.csv#row:Tuas`). Table rows become self describing sentences, and rows that share a first value each keep their own chunk.
+**Chunking.** PDF text is extracted page by page, lines that repeat on most pages (running headers and footers) are removed, and text is packed into chunks of about 90 words on sentence boundaries, with one sentence of overlap. A run of text with no sentence breaks (a flattened table, say) is cut every 90 words rather than kept as one oversized chunk. Markdown is split at headings. Each chunk is cited as `source#page` (`employee_handbook.pdf#p2`), `source#section`, or a table row (`warehouse_sla.csv#row:Tuas`). Table rows become self describing sentences, and rows that share a first value each keep their own chunk.
 
 **Access control.** Every retriever takes the asker's groups. pgvector filters with `groups && $groups` in the same query as the vector ordering, with iterative HNSW scans (pgvector 0.8+) so a heavily filtered search still returns k rows. BM25 masks out documents the same way before ranking. Sources missing from the manifest get no groups, so they are unreadable until someone grants access.
 
