@@ -15,14 +15,19 @@ from ..models import Chunk
 
 
 def rows_to_chunks(rows: Iterable[dict], source: str, title: str, groups: tuple[str, ...]) -> list[Chunk]:
+    """A row is cited by its first value ("row:Tuas"). Rows that share that value (a site listed once per
+    quarter, say) are told apart by index, so each keeps its own chunk id instead of overwriting the last."""
     chunks: list[Chunk] = []
-    for i, row in enumerate(rows):
+    seen: dict[str, int] = {}
+    for row in rows:
         cells = [(k.strip(), str(v).strip()) for k, v in row.items() if k and str(v).strip()]
         if not cells:
             continue
         key = cells[0][1]
+        index = seen.get(key, 0)
+        seen[key] = index + 1
         body = "; ".join(f"{k.replace('_', ' ')}: {v}" for k, v in cells)
-        chunks.append(Chunk(source=source, location=f"row:{key}", index=0, text=f"{title}. {body}.",
+        chunks.append(Chunk(source=source, location=f"row:{key}", index=index, text=f"{title}. {body}.",
                             title=title, groups=groups, kind="table"))
     return chunks
 

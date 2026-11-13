@@ -44,6 +44,22 @@ def test_csv_rows_become_self_describing_chunks():
     assert "dock to stock hours: 24" in tuas.text
 
 
+def test_csv_rows_with_the_same_key_are_all_kept(tmp_path, embedder):
+    # The first column repeats (one row per quarter), so it cannot be the whole chunk id on its own.
+    (tmp_path / "throughput.csv").write_text(
+        "site,quarter,pallets\nTuas,Q1,1200\nTuas,Q2,1350\nJurong,Q1,900\nTuas,Q3,1410\n", encoding="utf-8")
+    (tmp_path / "manifest.json").write_text(json.dumps({"throughput.csv": {"groups": ["all"]}}))
+    chunks = load_csv(tmp_path / "throughput.csv", ("all",), "Throughput")
+    assert len({c.chunk_id for c in chunks}) == 4
+    assert [c.ref for c in chunks] == ["throughput.csv#row:Tuas"] * 2 + ["throughput.csv#row:Jurong",
+                                                                          "throughput.csv#row:Tuas"]
+    store = MemoryStore()
+    report = ingest_folder(tmp_path, embedder, store)
+    assert report.chunks == report.embedded == 4
+    texts = " ".join(c.text for c in store.all_chunks())
+    assert all(f"pallets: {n}" in texts for n in (1200, 1350, 900, 1410))
+
+
 def test_manifest_sets_groups():
     chunks = parse_folder(CORPUS)
     groups = {c.source: c.groups for c in chunks}
