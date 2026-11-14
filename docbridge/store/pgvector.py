@@ -64,7 +64,7 @@ class PgVectorStore:
                     (chunk_id, source, location, idx, title, kind, body, groups, content_hash, embedding)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (chunk_id) DO UPDATE SET
-                      body = EXCLUDED.body, groups = EXCLUDED.groups, title = EXCLUDED.title,
+                      body = EXCLUDED.body, groups = EXCLUDED.groups, title = EXCLUDED.title, kind = EXCLUDED.kind,
                       content_hash = EXCLUDED.content_hash, embedding = EXCLUDED.embedding, updated_at = now()""",
                 rows,
             )

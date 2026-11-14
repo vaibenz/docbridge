@@ -96,3 +96,18 @@ def test_ingest_is_incremental(tmp_path, embedder):
     (tmp_path / "c" / "salary_bands.csv").unlink()
     third = ingest_folder(tmp_path / "c", embedder, store)
     assert third.removed == 4 and store.count() == first.chunks - 4
+
+
+def test_a_new_title_in_the_manifest_is_picked_up(tmp_path, embedder):
+    # The title is embedded with the text and shown in citations, so renaming a
+    # source in the manifest has to re-embed its chunks, not skip them as unchanged.
+    (tmp_path / "notes.md").write_text("# Leave\nStaff get eighteen days of annual leave.\n")
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text(json.dumps({"notes.md": {"groups": ["all"], "title": "Old Handbook"}}))
+    store = MemoryStore()
+    first = ingest_folder(tmp_path, embedder, store)
+
+    manifest.write_text(json.dumps({"notes.md": {"groups": ["all"], "title": "Staff Handbook 2026"}}))
+    second = ingest_folder(tmp_path, embedder, store)
+    assert second.embedded == first.chunks and second.skipped_unchanged == 0
+    assert {c.title for c in store.all_chunks()} == {"Staff Handbook 2026"}

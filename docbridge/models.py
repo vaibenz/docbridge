@@ -27,7 +27,10 @@ class Chunk:
 
     @property
     def content_hash(self) -> str:
-        return hashlib.sha256(f"{self.chunk_id}|{self.text}|{','.join(self.groups)}".encode()).hexdigest()[:16]
+        # Everything that ends up in the stored row or the embedded text ("title\ntext"),
+        # so a change to any of it, a manifest rename included, re-embeds the chunk.
+        return hashlib.sha256(
+            f"{self.chunk_id}|{self.title}|{self.kind}|{self.text}|{','.join(self.groups)}".encode()).hexdigest()[:16]
 
 
 @dataclass
