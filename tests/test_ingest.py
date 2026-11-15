@@ -70,6 +70,19 @@ def test_csv_rows_with_the_same_key_are_all_kept(tmp_path, embedder):
     assert all(f"pallets: {n}" in texts for n in (1200, 1350, 900, 1410))
 
 
+def test_missing_cells_are_left_out_not_written_as_none(tmp_path):
+    # csv.DictReader fills a short row with None, and BigQuery returns NULL as None. Writing
+    # "cap: None" would hand the model a value the table never had.
+    from docbridge.ingest.tables import rows_to_chunks
+
+    (tmp_path / "caps.csv").write_text("site,region,cap\nTuas,SG\nJurong,SG,5\n", encoding="utf-8")
+    tuas, jurong = load_csv(tmp_path / "caps.csv", ("all",), "Caps")
+    assert "None" not in tuas.text and "cap" not in tuas.text
+    assert "cap: 5" in jurong.text
+    (row,) = rows_to_chunks([{"site": "Tuas", "cap": None}], "bq", "Caps", ("all",))
+    assert row.text == "Caps. site: Tuas."
+
+
 def test_manifest_sets_groups():
     chunks = parse_folder(CORPUS)
     groups = {c.source: c.groups for c in chunks}

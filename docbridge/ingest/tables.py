@@ -20,7 +20,10 @@ def rows_to_chunks(rows: Iterable[dict], source: str, title: str, groups: tuple[
     chunks: list[Chunk] = []
     seen: dict[str, int] = {}
     for row in rows:
-        cells = [(k.strip(), str(v).strip()) for k, v in row.items() if k and str(v).strip()]
+        # A missing cell is None (a short CSV row, a NULL from BigQuery): leave it out rather
+        # than write "None", which reads to the model as a real value.
+        cells = [(k.strip(), str(v).strip()) for k, v in row.items()
+                 if k and v is not None and str(v).strip()]
         if not cells:
             continue
         key = cells[0][1]
