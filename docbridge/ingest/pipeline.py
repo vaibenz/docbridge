@@ -35,12 +35,22 @@ def load_manifest(folder: Path) -> dict:
     return json.loads(path.read_text()) if path.exists() else {}
 
 
+def _groups(name: str, value: object) -> tuple[str, ...]:
+    """A list of group names, or one name as a plain string. tuple("hr") would be ("h", "r"),
+    so a string is one group; anything else is a mistake in the manifest and stops ingestion."""
+    if isinstance(value, str):
+        return (value,)
+    if isinstance(value, (list, tuple)) and all(isinstance(g, str) for g in value):
+        return tuple(value)
+    raise ValueError(f"manifest.json: groups for {name} must be a list of group names, got {value!r}")
+
+
 def parse_folder(folder: Path) -> list[Chunk]:
     manifest = load_manifest(folder)
     chunks: list[Chunk] = []
     for path in sorted(folder.iterdir()):
         spec = manifest.get(path.name, {})
-        groups = tuple(spec.get("groups", ()))
+        groups = _groups(path.name, spec.get("groups", ()))
         title = spec.get("title", "")
         if path.suffix.lower() == ".pdf":
             chunks.extend(load_pdf(path, groups, title))

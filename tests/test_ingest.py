@@ -91,6 +91,19 @@ def test_manifest_sets_groups():
     assert groups["employee_handbook.pdf"] == ("all",)
 
 
+def test_manifest_groups_written_as_one_string(tmp_path):
+    # tuple("hr") is ("h", "r"): a manifest saying "groups": "hr" locked HR out of its own
+    # documents, and "groups": "all" made a public file unreadable to everyone.
+    import pytest
+
+    (tmp_path / "a.md").write_text("Leave is 18 days a year.", encoding="utf-8")
+    (tmp_path / "manifest.json").write_text(json.dumps({"a.md": {"groups": "hr"}}))
+    assert {c.groups for c in parse_folder(tmp_path)} == {("hr",)}
+    (tmp_path / "manifest.json").write_text(json.dumps({"a.md": {"groups": {"hr": True}}}))
+    with pytest.raises(ValueError, match="a.md"):
+        parse_folder(tmp_path)
+
+
 def test_sources_missing_from_manifest_are_locked_down(tmp_path):
     shutil.copy(CORPUS / "warehouse_sla.csv", tmp_path / "unlisted.csv")
     (tmp_path / "manifest.json").write_text(json.dumps({}))
