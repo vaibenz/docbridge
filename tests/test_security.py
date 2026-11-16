@@ -45,6 +45,21 @@ def test_guard_removes_images_and_foreign_links():
     assert len(removed) == 4
 
 
+@pytest.mark.parametrize("domain", [" harbourline.example", "Harbourline.Example", ".harbourline.example"])
+def test_guard_normalises_allowed_domains(domain):
+    # Written the way an environment variable often is: "a.example, b.example", any case, a leading dot.
+    answer = "See [policy](https://intranet.harbourline.example/leave) or https://harbourline.example/hr."
+    cleaned, removed = guard_answer(answer, allowed_domains=["other.example", domain])
+    assert cleaned == answer and removed == []
+    cleaned, removed = guard_answer("Go to https://evil.example/x", allowed_domains=[domain])
+    assert "evil.example" not in cleaned and len(removed) == 1
+
+
+def test_guard_blank_allowed_domain_allows_nothing():
+    cleaned, removed = guard_answer("Go to https://evil.example/x", allowed_domains=["", " ", "."])
+    assert "evil.example" not in cleaned and len(removed) == 1
+
+
 @pytest.mark.parametrize("url", [
     "https://evil.example\\@intranet.harbourline.example/?q=leave",
     "https://evil.example\\.harbourline.example/?q=leave",

