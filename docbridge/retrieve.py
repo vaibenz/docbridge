@@ -138,6 +138,10 @@ def rrf_fuse(rankings: Sequence[Sequence[Hit]], k: int, rrf_k: int = 60,
              weights: Sequence[float] | None = None) -> list[Hit]:
     """Reciprocal rank fusion of several ranked lists of hits."""
     weights = weights or [1.0] * len(rankings)
+    # zip would quietly drop a ranking without a weight: hybrid search with one weight for two
+    # retrievers would be dense search alone, with nothing to say BM25 had stopped counting.
+    if len(weights) != len(rankings):
+        raise ValueError(f"{len(weights)} weights for {len(rankings)} rankings")
     fused: dict[str, float] = defaultdict(float)
     best: dict[str, Hit] = {}
     for ranking, w in zip(rankings, weights):
@@ -164,6 +168,8 @@ class HybridRetriever:
     def __init__(self, retrievers: Sequence[Retriever], depth: int = 50, rrf_k: int = 60,
                  weights: Sequence[float] | None = None):
         self.retrievers, self.depth, self.rrf_k, self.weights = list(retrievers), depth, rrf_k, weights
+        if weights and len(weights) != len(self.retrievers):  # fail at start up, not on the first query
+            raise ValueError(f"{len(weights)} weights for {len(self.retrievers)} retrievers")
 
     def search(self, query: str, k: int, groups: Sequence[str]) -> list[Hit]:
         rankings = [r.search(query, max(self.depth, k), groups) for r in self.retrievers]

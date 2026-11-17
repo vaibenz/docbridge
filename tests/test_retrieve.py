@@ -66,6 +66,16 @@ def test_rrf_arithmetic():
     assert weighted[0].chunk.source == "w"
 
 
+def test_rrf_refuses_a_weight_count_that_does_not_match():
+    # One weight for two rankings used to fuse the first ranking alone, silently.
+    with pytest.raises(ValueError):
+        rrf_fuse([_hits("x"), _hits("w")], k=2, weights=[1.0])
+    with pytest.raises(ValueError):
+        rrf_fuse([_hits("x")], k=2, weights=[1.0, 2.0])
+    with pytest.raises(ValueError):
+        HybridRetriever([_Fixed([]), _Fixed([])], weights=[1.0])
+
+
 class _Fixed:
     def __init__(self, hits):
         self.hits = hits
