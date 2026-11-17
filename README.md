@@ -102,7 +102,7 @@ Anyone who can add a document can write instructions aimed at the model instead 
 1. **Access control in the query.** The model never receives what the asker may not read.
 2. **Ingestion screening** (`docbridge/security.py`). Chunks that address the model rather than a reader (overrides, role tags, persona switches, exfiltration markup, URL templates) are quarantined for a person to review instead of being indexed. It's a heuristic. On 19,035 held out Wikipedia paragraphs from SQuAD's training set it flagged 20 (0.11%) as suspicious; fixing the bug that exposed (it matched the name "Dan" as the DAN jailbreak) brought that to 2. It flags none of the company corpus.
 3. **Spotlighting.** For Gemini, passages are wrapped in tags with a random boundary per request and the prompt says their contents are data, never instructions. This makes compliance less likely, not impossible.
-4. **Output guard.** Images, HTML and links to domains not on an allow list are removed from every answer, whatever the model was talked into writing.
+4. **Output guard.** Images, HTML, links to domains not on an allow list and links that are not http(s) (a `javascript:` link naming an allowed host still runs script) are removed from every answer, whatever the model was talked into writing.
 
 `docbridge redteam` plants each of 19 attacks in the corpus (or sends it as the question), asks as an ordinary employee, and checks whether the answer contains what the attacker wanted. The `echo` model is the worst case: it repeats everything in its context, so it measures what each layer guarantees independently of the model.
 

@@ -77,12 +77,21 @@ _HTML_TAG = re.compile(r"<\s*(img|a|iframe|script|link|object|embed)\b[^>]*>", r
 _BARE_URL = re.compile(r"\b(?:https?://|www\.)[^\s<>()\]]+", re.I)
 
 
+_SCHEME = re.compile(r"([a-z][a-z0-9+.-]*):", re.I)
+
+
 def _allowed(url: str, domains: Iterable[str]) -> bool:
     # Browsers read a backslash in an http(s) URL as a slash, but urlparse does not:
     # "https://evil.example\@docs.example/" is docs.example to Python and evil.example
     # to a browser. Parse it the way the browser will.
     url = url.replace("\\", "/")
-    host = urlparse(url if "://" in url else f"https://{url}").hostname or ""
+    # Only http(s) goes anywhere near the allow list. "javascript://docs.example/%0aalert(1)" has
+    # docs.example as its host to urlparse, but a browser runs it as script when it is clicked.
+    # A browser also reads "docs.example:8080/x" as the scheme "docs.example", so any scheme counts.
+    scheme = _SCHEME.match(url)
+    if scheme and scheme.group(1).lower() not in ("http", "https"):
+        return False
+    host = urlparse(url if scheme else f"https://{url}").hostname or ""
     return any(host == d or host.endswith("." + d) for d in domains)
 
 
