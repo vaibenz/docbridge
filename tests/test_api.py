@@ -171,3 +171,20 @@ def test_web_app_and_question_limits(client, keys):
     assert client.post("/ask", json={"question": ""}, headers=auth(keys)).status_code == 422
     assert client.post("/ask", json={"question": " \n\t "}, headers=auth(keys)).status_code == 422
     assert client.post("/ask", json={"question": "x" * 1001}, headers=auth(keys)).status_code == 422
+
+
+def test_access_file_names_written_as_one_string(tmp_path):
+    # set("hr") is {"h", "r"}: a single group written as a string gave the user the groups h and r, and a
+    # single admin written as a string made nobody an admin.
+    path = tmp_path / "access.json"
+    path.write_text(json.dumps({"users": {"Alice@Harbourline.example": "hr"},
+                                "domains": {"harbourline.example": "staff"},
+                                "admins": "ops@harbourline.example"}))
+    access = AccessMap.load(path)
+    assert access.groups_for("alice@harbourline.example") == {"hr", "staff"}
+    assert "admin" in access.groups_for("OPS@harbourline.example")
+    for bad in ({"users": {"a@x.example": {"hr": True}}}, {"domains": {"x.example": ["staff", 3]}},
+                {"admins": None}):
+        path.write_text(json.dumps(bad))
+        with pytest.raises(ValueError, match="access file"):
+            AccessMap.load(path)

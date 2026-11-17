@@ -65,9 +65,9 @@ class AccessMap:
         if not path:
             return cls()
         data = json.loads(Path(path).read_text())
-        return cls({k.lower(): v for k, v in data.get("users", {}).items()},
-                   {k.lower(): v for k, v in data.get("domains", {}).items()},
-                   [a.lower() for a in data.get("admins", [])])
+        return cls({k.lower(): _names(f"users.{k}", v) for k, v in data.get("users", {}).items()},
+                   {k.lower(): _names(f"domains.{k}", v) for k, v in data.get("domains", {}).items()},
+                   [a.lower() for a in _names("admins", data.get("admins", []))])
 
     def groups_for(self, email: str | None) -> set[str]:
         if not email:
@@ -78,6 +78,17 @@ class AccessMap:
         if email in self.admins:
             out.add("admin")
         return out
+
+
+def _names(where: str, value: object) -> list[str]:
+    """A list of names, or one name as a plain string. set("hr") is {"h", "r"}, so "users": {"a@x": "hr"}
+    used to give alice the groups h and r, and "admins": "ops@x" made nobody an admin. A string is now one
+    name, and anything else stops the server at start up with the entry named."""
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, list) and all(isinstance(v, str) for v in value):
+        return value
+    raise ValueError(f"access file: {where} must be a list of names, got {value!r}")
 
 
 class TokenVerifier:
