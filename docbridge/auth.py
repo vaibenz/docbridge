@@ -149,6 +149,12 @@ class RateLimiter:
     """Token bucket per subject: `rate` requests per minute, bursts up to `burst`."""
 
     def __init__(self, rate: float = 30, burst: int = 10, clock: Callable[[], float] = time.monotonic):
+        # Refused at start up: a rate of 0 made every 429 divide by zero working out Retry-After (a 500),
+        # a negative one drained buckets as time passed, and a burst under 1 never lets anyone in.
+        if not (math.isfinite(rate) and rate > 0):
+            raise ValueError(f"rate must be a positive number of requests per minute, got {rate}")
+        if burst < 1:
+            raise ValueError(f"burst must be at least 1, got {burst}")
         self.per_second, self.burst, self.clock = rate / 60.0, burst, clock
         self._buckets: dict[str, tuple[float, float]] = {}
         self._lock = threading.Lock()

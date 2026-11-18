@@ -118,6 +118,14 @@ def test_rate_limiter_retry_after_is_the_real_wait():
     assert rl.retry_after("a") == 0 and rl.allow("a")
 
 
+@pytest.mark.parametrize("rate,burst", [(0, 10), (-30, 10), (float("nan"), 10), (float("inf"), 10), (30, 0)])
+def test_rate_limiter_refuses_a_rate_or_burst_that_cannot_work(rate, burst):
+    # DOCBRIDGE_RATE_PER_MIN=0 used to start fine, then every 429 divided by zero in retry_after and
+    # answered 500; a negative rate drained buckets over time, and a burst of 0 never let anyone in.
+    with pytest.raises(ValueError):
+        RateLimiter(rate=rate, burst=burst)
+
+
 @pytest.fixture(scope="module")
 def client(keys, verifier):
     from docbridge.api import create_app
