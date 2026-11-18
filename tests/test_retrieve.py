@@ -113,3 +113,20 @@ def test_llm_reranker_reorders_by_score_and_keeps_order_on_ties():
     out = LLMReranker(first, Scorer(), candidates=10).search("q", 2, ["all"])
     assert [h.chunk.source for h in out] == ["d.pdf", "a.pdf"]
     assert out[0].meta["rerank_score"] == 10.0
+
+
+def test_gemini_rerank_scores_that_are_not_finite_numbers_count_as_zero():
+    # JSON from a model can hold NaN, Infinity or a word. NaN compares false with everything, so one
+    # NaN would scramble the reranker's sort; and one bad entry must not zero the whole list.
+    from docbridge.llm import GeminiLLM
+
+    llm = GeminiLLM.__new__(GeminiLLM)
+    llm._text = lambda prompt, json_mode=False: '{"scores": [NaN, 9, "high", Infinity, -Infinity, "7"]}'
+    assert llm.score_passages("q", ["a", "b", "c", "d", "e", "f"]) == [0.0, 9.0, 0.0, 0.0, 0.0, 7.0]
+
+    llm._text = lambda prompt, json_mode=False: '{"scores": [3, NaN, 8, 1]}'
+    from docbridge.retrieve import LLMReranker
+
+    first = _Fixed([Hit(Chunk(f"{n}.md", "p1", 0, n), 1.0) for n in "wxyz"])
+    out = LLMReranker(first, llm, candidates=4).search("q", 4, ["all"])
+    assert [h.chunk.text for h in out] == ["y", "w", "z", "x"]

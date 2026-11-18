@@ -8,6 +8,7 @@ protocol, so the LangGraph workflow does not know which one it is using.
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 from typing import Protocol, Sequence
@@ -246,9 +247,23 @@ class GeminiLLM:
                   f'Reply as JSON: {{"scores": [one number per passage, in order]}}')
         try:
             scores = json.loads(self._text(prompt, json_mode=True))["scores"]
-            return [float(s) for s in scores][:len(passages)] + [0.0] * max(0, len(passages) - len(scores))
-        except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+            if not isinstance(scores, list):
+                raise TypeError("scores is not a list")
+        except (json.JSONDecodeError, KeyError, TypeError):
             return [0.0] * len(passages)
+        scores = [_finite_or_zero(s) for s in scores[:len(passages)]]
+        return scores + [0.0] * (len(passages) - len(scores))
+
+
+def _finite_or_zero(s) -> float:
+    """One rerank score. Python's json reads NaN and Infinity, and NaN compares false with every
+    number, so a single NaN would leave the reranker's sort in an arbitrary order. A word or a NaN
+    scores 0 on its own instead of throwing away the scores of every other passage."""
+    try:
+        v = float(s)
+    except (TypeError, ValueError):
+        return 0.0
+    return v if math.isfinite(v) else 0.0
 
 
 def default_llm() -> LLM:
