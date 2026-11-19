@@ -123,11 +123,21 @@ class TokenVerifier:
         except jwt.PyJWTError as e:
             raise AuthError(str(e)) from e
         email = claims.get("email") if _is_verified(claims.get("email_verified")) else None
-        token_groups = claims.get(self.groups_claim, [])
-        if isinstance(token_groups, str):
-            token_groups = token_groups.split()
-        groups = {str(g) for g in token_groups} | self.access.groups_for(email) | {"all"}
+        groups = set(_claim_groups(claims.get(self.groups_claim))) | self.access.groups_for(email) | {"all"}
         return Principal(claims["sub"], email, tuple(sorted(groups)))
+
+
+def _claim_groups(value: object) -> list[str]:
+    """Group names from the groups claim: a list of strings, or one space separated string.
+
+    Anything else gives no groups. A number used to fail with a TypeError (a 500 for a validly signed
+    token), an object gave its keys as groups ({"admin": false} made the user an admin), and None or
+    nested values in a list became groups named "None" or "['hr']"."""
+    if isinstance(value, str):
+        return value.split()
+    if isinstance(value, list):
+        return [g for g in value if isinstance(g, str) and g]
+    return []
 
 
 def _is_verified(value: object) -> bool:

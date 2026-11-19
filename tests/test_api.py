@@ -46,6 +46,18 @@ def test_valid_token_gives_groups_from_claim_and_access_map(keys, verifier):
     assert "hr" in p.groups
 
 
+@pytest.mark.parametrize("claim, expected", [
+    ("engineering hr", {"engineering", "hr"}),           # one space separated string
+    (["engineering", None, 5, ["hr"], {"x": 1}, ""], {"engineering"}),  # only real names count
+    ({"admin": False}, set()),                            # an object's keys are not groups
+    (7, set()),                                           # used to be a TypeError, so a 500
+    (True, set()),
+])
+def test_groups_claim_of_the_wrong_shape_gives_no_extra_groups(keys, verifier, claim, expected):
+    p = verifier.verify(make_token(keys[0], groups=claim))
+    assert set(p.groups) == {"all", "staff"} | expected
+
+
 @pytest.mark.parametrize("verified", [False, "false", "False", "no", 1, "", None])
 def test_unverified_email_is_not_used_for_groups(keys, verifier, verified):
     token = make_token(keys[0], email="hr.lead@harbourline.example", email_verified=verified)
