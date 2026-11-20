@@ -31,8 +31,18 @@ class IngestReport:
 
 
 def load_manifest(folder: Path) -> dict:
+    """An object mapping file names to {"groups": [...], "title": "..."}. Anything else is a mistake
+    that would otherwise surface as an AttributeError mid ingest, or as a list printed into a title."""
     path = folder / "manifest.json"
-    return json.loads(path.read_text()) if path.exists() else {}
+    manifest = json.loads(path.read_text()) if path.exists() else {}
+    if not isinstance(manifest, dict):
+        raise ValueError(f"manifest.json must be an object of file names, got {type(manifest).__name__}")
+    for name, spec in manifest.items():
+        if not isinstance(spec, dict):
+            raise ValueError(f"manifest.json: the entry for {name} must be an object, got {spec!r}")
+        if not isinstance(spec.get("title", ""), str):
+            raise ValueError(f"manifest.json: title for {name} must be a string, got {spec['title']!r}")
+    return manifest
 
 
 def _groups(name: str, value: object) -> tuple[str, ...]:

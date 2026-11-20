@@ -104,6 +104,16 @@ def test_manifest_groups_written_as_one_string(tmp_path):
         parse_folder(tmp_path)
 
 
+def test_a_malformed_manifest_entry_is_refused_by_name(tmp_path):
+    import pytest
+
+    (tmp_path / "a.md").write_text("Leave is 18 days a year.", encoding="utf-8")
+    for bad in ({"a.md": ["hr"]}, {"a.md": {"groups": ["hr"], "title": ["Handbook"]}}, [{"a.md": {}}]):
+        (tmp_path / "manifest.json").write_text(json.dumps(bad))
+        with pytest.raises(ValueError, match="manifest.json"):
+            parse_folder(tmp_path)
+
+
 def test_sources_missing_from_manifest_are_locked_down(tmp_path):
     shutil.copy(CORPUS / "warehouse_sla.csv", tmp_path / "unlisted.csv")
     (tmp_path / "manifest.json").write_text(json.dumps({}))
