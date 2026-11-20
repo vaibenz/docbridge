@@ -2,7 +2,8 @@
 
 Sections start at Markdown headings (or at the top of the file), and each
 section is chunked on sentence boundaries like PDF pages are. Chunks are cited
-as `file#s2` for the second section.
+as `file#s2` for the second section. A `#` line inside a fenced code block
+(a shell comment, say) is code, not a heading.
 """
 
 from __future__ import annotations
@@ -14,12 +15,19 @@ from ..models import Chunk
 from .chunker import chunk_text
 
 _HEADING = re.compile(r"^\s{0,3}#{1,6}\s+(.*)$")
+_FENCE = re.compile(r"^\s{0,3}(`{3,}|~{3,})")
 
 
 def split_sections(text: str) -> list[str]:
     sections: list[list[str]] = [[]]
+    fence = ""  # the open fence ("```" or "~~~~", say), empty outside a code block
     for line in text.splitlines():
-        m = _HEADING.match(line)
+        f = _FENCE.match(line)
+        if f and not fence:
+            fence = f.group(1)
+        elif f and f.group(1)[0] == fence[0] and len(f.group(1)) >= len(fence) and not line.strip()[len(f.group(1)):]:
+            fence = ""  # a closing fence: same character, at least as long, nothing after it
+        m = None if fence or f else _HEADING.match(line)
         if m and any(l.strip() for l in sections[-1]):
             sections.append([])
         # A heading becomes its own sentence so it stays attached to its section.

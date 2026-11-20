@@ -40,7 +40,9 @@ _STRONG = {
     "override": r"\b(ignore|disregard|forget|override|bypass)\b[^.\n]{0,40}\b(previous|prior|above|earlier|preceding|all|any|your|the)\b[^.\n]{0,20}\b(instructions?|rules|guidelines|directions|prompts?|context|messages?)\b",
     # Chat template tokens, and a line or sentence that is only a role name ("### system" in
     # Markdown arrives here as the sentence "system." because the loader keeps headings as sentences).
-    "role_tags": r"(<\|?(im_start|im_end|system|endoftext)\|?>|\[/?INST\]|^\s*#{1,3}\s*(system|assistant)\b|^\s*(system|assistant)\s*:|<\s*/?\s*(system|instructions?)\s*>|(^|[.!?]\s+)(system|assistant|developer)\s*[.:]\s)",
+    # Inside a fenced code block the loader leaves "### system" alone, mid chunk, so a role
+    # heading also counts there when a capitalised sentence follows ("# system packages" does not).
+    "role_tags": r"(<\|?(im_start|im_end|system|endoftext)\|?>|\[/?INST\]|^\s*#{1,3}\s*(system|assistant)\b|(^|\s)#{1,3}\s*(system|assistant|developer)\s*(:|$|\s+(?-i:[A-Z]))|^\s*(system|assistant)\s*:|<\s*/?\s*(system|instructions?)\s*>|(^|[.!?]\s+)(system|assistant|developer)\s*[.:]\s)",
     "system_prompt": r"\b(system|developer)\s+(prompt|message|instructions?)\b|\b(hidden|initial|original|secret)\s+(prompt|instructions)\b",
     "persona": r"\b(you are now|from now on,? you (are|will|must|should)|you (will|must|should|shall) (now )?act as|pretend (to be|you are)|roleplay as|new persona)\b",
     # "(?-i:DAN)": the jailbreak persona is written in capitals; "Dan" is a name.
