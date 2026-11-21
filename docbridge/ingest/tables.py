@@ -36,7 +36,9 @@ def rows_to_chunks(rows: Iterable[dict], source: str, title: str, groups: tuple[
 
 
 def load_csv(path: Path, groups: tuple[str, ...], title: str = "") -> list[Chunk]:
-    with path.open(newline="", encoding="utf-8") as f:
+    # utf-8-sig drops the byte order mark Excel writes at the start of a "CSV UTF-8" file, which
+    # plain utf-8 would keep as part of the first header ("\ufeffsite: Tuas" in every row).
+    with path.open(newline="", encoding="utf-8-sig") as f:
         return rows_to_chunks(csv.DictReader(f), path.name, title or path.stem, groups)
 
 

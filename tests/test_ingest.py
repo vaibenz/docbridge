@@ -83,6 +83,15 @@ def test_missing_cells_are_left_out_not_written_as_none(tmp_path):
     assert row.text == "Caps. site: Tuas."
 
 
+def test_csv_saved_with_a_byte_order_mark(tmp_path):
+    # Excel's "CSV UTF-8" writes a byte order mark first. Read as plain utf-8 it sticks to the
+    # first header, so every row's text and its key column start with "\ufeffsite".
+    (tmp_path / "sites.csv").write_bytes("site,region\nTuas,Singapore\n".encode("utf-8-sig"))
+    (row,) = load_csv(tmp_path / "sites.csv", ("all",), "Sites")
+    assert "\ufeff" not in row.text
+    assert row.text == "Sites. site: Tuas; region: Singapore."
+
+
 def test_manifest_sets_groups():
     chunks = parse_folder(CORPUS)
     groups = {c.source: c.groups for c in chunks}
