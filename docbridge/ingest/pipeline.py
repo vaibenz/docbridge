@@ -59,6 +59,10 @@ def parse_folder(folder: Path) -> list[Chunk]:
     manifest = load_manifest(folder)
     chunks: list[Chunk] = []
     for path in sorted(folder.iterdir()):
+        # Hidden files are not sources: "._handbook.pdf" is the resource fork a Mac leaves when it
+        # copies a folder to a share or a zip, and parsing it as a PDF would stop the whole ingest.
+        if path.name.startswith(".") or not path.is_file():
+            continue
         spec = manifest.get(path.name, {})
         groups = _groups(path.name, spec.get("groups", ()))
         title = spec.get("title", "")

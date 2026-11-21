@@ -92,6 +92,19 @@ def test_csv_saved_with_a_byte_order_mark(tmp_path):
     assert row.text == "Sites. site: Tuas; region: Singapore."
 
 
+def test_hidden_files_in_the_corpus_folder_are_skipped(tmp_path):
+    # Copying a folder from a Mac onto a share or into a zip leaves a "._name" file of resource fork
+    # bytes beside each real one. "._handbook.pdf" is not a PDF, and pypdf failing on it stopped the
+    # whole ingest; a hidden ".notes.md" is an editor's, not the corpus's.
+    (tmp_path / "sites.csv").write_text("site,region\nTuas,Singapore\n", encoding="utf-8")
+    (tmp_path / "._sites.csv").write_bytes(b"\x00\x05\x16\x07Mac OS X")
+    (tmp_path / "._handbook.pdf").write_bytes(b"\x00\x05\x16\x07\x00\x02\x00\x00Mac OS X")
+    (tmp_path / ".draft.md").write_text("# Draft\n\nNot ready.\n", encoding="utf-8")
+    (tmp_path / "archive.pdf").mkdir()  # a folder that happens to end in .pdf
+    chunks = parse_folder(tmp_path)
+    assert {c.source for c in chunks} == {"sites.csv"}
+
+
 def test_manifest_sets_groups():
     chunks = parse_folder(CORPUS)
     groups = {c.source: c.groups for c in chunks}
