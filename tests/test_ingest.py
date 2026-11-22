@@ -1,6 +1,8 @@
 import json
 import shutil
 
+import pytest
+
 from docbridge.ingest.chunker import chunk_text, split_sentences
 from docbridge.ingest.pdf import load_pdf, strip_boilerplate
 from docbridge.ingest.pipeline import ingest_folder, parse_folder
@@ -181,3 +183,18 @@ def test_a_new_title_in_the_manifest_is_picked_up(tmp_path, embedder):
     second = ingest_folder(tmp_path, embedder, store)
     assert second.embedded == first.chunks and second.skipped_unchanged == 0
     assert {c.title for c in store.all_chunks()} == {"Staff Handbook 2026"}
+
+
+def test_an_embedder_that_drops_a_vector_stops_ingest(tmp_path, embedder):
+    # If the embedder returns fewer vectors than texts, the store used to zip them and skip the rest:
+    # the report still counted every chunk as embedded, but the last one was in no index at all.
+    (tmp_path / "sites.csv").write_text("site,region\nTuas,Singapore\nJurong,Singapore\n", encoding="utf-8")
+
+    class Short:
+        dim = embedder.dim
+
+        def embed_documents(self, texts):
+            return embedder.embed_documents(texts)[:-1]
+
+    with pytest.raises(ValueError, match="1 vectors for 2 chunks"):
+        ingest_folder(tmp_path, Short(), MemoryStore(), screening=False)

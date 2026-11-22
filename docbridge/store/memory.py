@@ -7,6 +7,7 @@ from typing import Sequence
 import numpy as np
 
 from ..models import Chunk, Hit
+from .base import check_upsert
 
 
 class MemoryStore:
@@ -15,6 +16,7 @@ class MemoryStore:
         self._vecs: dict[str, np.ndarray] = {}
 
     def upsert(self, chunks: Sequence[Chunk], vectors: np.ndarray) -> None:
+        check_upsert(chunks, vectors)
         for chunk, vec in zip(chunks, vectors):
             self._chunks[chunk.chunk_id] = chunk
             self._vecs[chunk.chunk_id] = np.asarray(vec, dtype=np.float32)

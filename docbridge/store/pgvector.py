@@ -16,6 +16,7 @@ import psycopg
 from pgvector.psycopg import register_vector
 
 from ..models import Chunk, Hit
+from .base import check_upsert
 
 SCHEMA = """
 CREATE EXTENSION IF NOT EXISTS vector;
@@ -53,6 +54,7 @@ class PgVectorStore:
             pass  # pgvector older than 0.8: still correct, may return fewer than k rows when filtering heavily
 
     def upsert(self, chunks: Sequence[Chunk], vectors: np.ndarray) -> None:
+        check_upsert(chunks, vectors)
         rows = [
             (c.chunk_id, c.source, c.location, c.index, c.title, c.kind, c.text, list(c.groups),
              c.content_hash, np.asarray(v, dtype=np.float32))
