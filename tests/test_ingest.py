@@ -5,6 +5,7 @@ from docbridge.ingest.chunker import chunk_text, split_sentences
 from docbridge.ingest.pdf import load_pdf, strip_boilerplate
 from docbridge.ingest.pipeline import ingest_folder, parse_folder
 from docbridge.ingest.tables import load_csv
+from docbridge.ingest.text import load_text
 from docbridge.store import MemoryStore
 
 from .conftest import CORPUS
@@ -90,6 +91,17 @@ def test_csv_saved_with_a_byte_order_mark(tmp_path):
     (row,) = load_csv(tmp_path / "sites.csv", ("all",), "Sites")
     assert "\ufeff" not in row.text
     assert row.text == "Sites. site: Tuas; region: Singapore."
+
+
+def test_markdown_saved_with_a_byte_order_mark(tmp_path):
+    # Notepad and many Windows editors save "UTF-8" with a byte order mark. Read as plain utf-8 the
+    # mark sits in front of the first "#", so the first heading is not a heading: it stays in the
+    # text as "\ufeff# Leave" and the next section's body runs into it.
+    (tmp_path / "leave.md").write_bytes("# Leave\n\nStaff get 20 days.\n\n# Travel\n\nBook economy.\n"
+                                        .encode("utf-8-sig"))
+    chunks = load_text(tmp_path / "leave.md", ("all",), "Policy")
+    assert [(c.location, c.text) for c in chunks] == [("s1", "Leave. Staff get 20 days."),
+                                                      ("s2", "Travel. Book economy.")]
 
 
 def test_hidden_files_in_the_corpus_folder_are_skipped(tmp_path):

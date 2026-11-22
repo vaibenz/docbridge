@@ -37,7 +37,8 @@ def split_sections(text: str) -> list[str]:
 
 def load_text(path: Path, groups: tuple[str, ...], title: str = "", max_words: int = 90) -> list[Chunk]:
     chunks: list[Chunk] = []
-    for s, section in enumerate(split_sections(path.read_text(encoding="utf-8")), start=1):
+    # utf-8-sig drops the byte order mark a Windows editor writes first; kept, it hides the first heading.
+    for s, section in enumerate(split_sections(path.read_text(encoding="utf-8-sig")), start=1):
         for i, text in enumerate(chunk_text(section, max_words=max_words)):
             chunks.append(Chunk(source=path.name, location=f"s{s}", index=i, text=text,
                                 title=title or path.stem, groups=groups, kind="text"))
