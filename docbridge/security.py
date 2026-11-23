@@ -73,7 +73,10 @@ def injection_score(text: str) -> Screening:
     return Screening(bool(strong) or len(weak) >= 2, tuple(strong + weak))
 
 
-_MD_IMAGE = re.compile(r"!\[[^\]]*\]\([^)]*\)")
+# Markdown allows balanced brackets in alt text ("![a [b] c](url)"), so one level of nesting is matched.
+_MD_IMAGE = re.compile(r"!\[(?:[^\[\]]|\[[^\[\]]*\])*\]\([^)]*\)")
+# Reference and shortcut images, "![x][r]", "![x][]" and "![r]", which load the URL of a "[r]: ..." line.
+_MD_REF_IMAGE = re.compile(r"!\[([^\]\n]*)\](?:\[([^\]\n]*)\])?")
 _MD_LINK = re.compile(r"\[([^\]]*)\]\(([^)\s]+)[^)]*\)")
 _HTML_TAG = re.compile(r"<\s*(img|a|iframe|script|link|object|embed)\b[^>]*>", re.I)
 _BARE_URL = re.compile(r"\b(?:https?://|www\.)[^\s<>()\]]+", re.I)
@@ -139,6 +142,19 @@ def guard_answer(answer: str, allowed_domains: Sequence[str] = ()) -> tuple[str,
         return ""
 
     out = _MD_REF_DEF.sub(ref_def, out)
+
+    # An image that names a definition left standing (an allowed domain) would still be loaded, and
+    # images are removed whatever their domain. Labels match case insensitively, as in CommonMark.
+    defined = {" ".join(m.group(1).split()).lower() for m in _MD_REF_DEF.finditer(out)}
+
+    def ref_image(m: re.Match) -> str:
+        label = m.group(2) or m.group(1)
+        if " ".join(label.split()).lower() not in defined:
+            return m.group(0)  # "Done![1]" with no "[1]: ..." line is text, not an image
+        removed.append(m.group(0))
+        return ""
+
+    out = _MD_REF_IMAGE.sub(ref_image, out)
 
     def bare(m: re.Match) -> str:
         if _allowed(m.group(0), allowed_domains):

@@ -111,6 +111,21 @@ def test_guard_keeps_link_reference_definitions_to_allowed_domains():
     assert cleaned == answer and removed == []
 
 
+@pytest.mark.parametrize("image", ["![x][r]", "![x][R]", "![r][]", "![r]", "![a [b] c](https://intranet.harbourline.example/p.png)"])
+def test_guard_removes_reference_and_nested_images_even_to_allowed_domains(image):
+    # Images are removed whatever their domain. These forms used to survive when the URL was allowed.
+    answer = f"Leave is 18 days. {image}\n\n[r]: https://intranet.harbourline.example/p.png"
+    cleaned, removed = guard_answer(answer, allowed_domains=["harbourline.example"])
+    assert "!" not in cleaned and removed == [image]
+    assert cleaned.startswith("Leave is 18 days.")
+
+
+def test_guard_leaves_an_exclamation_before_a_citation_alone():
+    answer = "Leave is 18 days![1] See [the policy][p].\n\n[p]: https://intranet.harbourline.example/leave"
+    cleaned, removed = guard_answer(answer, allowed_domains=["harbourline.example"])
+    assert cleaned == answer and removed == []
+
+
 def test_spotlight_boundary_is_random_and_wraps_every_passage():
     a, ba = spotlight(["one", "two"])
     b, bb = spotlight(["one", "two"])
