@@ -29,6 +29,20 @@ def test_pacer_waits_for_the_window_to_roll():
     assert clock.t == pytest.approx(60)
 
 
+@pytest.mark.parametrize("per_minute", [0, -5, 1.5, True])
+def test_pacer_refuses_a_pace_that_would_not_pace(per_minute):
+    with pytest.raises(ValueError):
+        Pacer(per_minute)
+
+
+def test_pacer_of_one_a_minute_still_paces():
+    clock = FakeClock()
+    p = Pacer(1, clock=clock, sleep=clock.sleep)
+    p.acquire()
+    p.acquire()
+    assert clock.t == pytest.approx(60)
+
+
 class ApiError(Exception):
     def __init__(self, code, msg):
         super().__init__(msg)

@@ -31,6 +31,10 @@ class Pacer:
 
     def __init__(self, per_minute: int, clock: Callable[[], float] = time.monotonic,
                  sleep: Callable[[float], None] = time.sleep):
+        # 0 or less used to switch pacing off without a word: acquire() capped each request at per_minute
+        # units, so every request "fit", and DOCBRIDGE_GEMINI_PER_MIN=0 sent calls as fast as they came.
+        if isinstance(per_minute, bool) or not isinstance(per_minute, int) or per_minute < 1:
+            raise ValueError(f"a pace of {per_minute!r} per minute: it must be a whole number of at least 1")
         self.per_minute, self.clock, self.sleep = per_minute, clock, sleep
         self._log: deque[tuple[float, int]] = deque()
 
