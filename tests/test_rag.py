@@ -3,7 +3,7 @@ import os
 import numpy as np
 import pytest
 
-from docbridge.evaluate import evaluate, groundedness, load_items, sentence_supported
+from docbridge.evaluate import evaluate, groundedness, load_items, sentence_supported, to_markdown
 from docbridge.llm import IDK
 from docbridge.models import Chunk, Hit
 
@@ -88,3 +88,15 @@ def test_pgvector_store_round_trip():
     store.delete([chunks[1].chunk_id])
     assert store.count() == 1
     store.conn.execute("DROP TABLE docbridge_test")
+
+
+def test_markdown_report_keeps_a_multi_line_answer_on_one_table_row():
+    # Model answers are often several lines (a list of steps). A raw newline ended the table row early, so
+    # the rest of the answer, and every row after it, rendered as loose text under a broken table.
+    item = {"id": "q1", "groups": ["all"], "first_pass_rank": 1, "rewrites": 0, "correct": True,
+            "grounded": 1.0, "answer": "Two steps:\n1. File the claim [1].\r\n2. Attach | the receipt."}
+    md = to_markdown({"summary": {"questions": 1}, "items": [item]})
+    rows = [line for line in md.splitlines() if line.startswith("| q1 ")]
+    assert len(rows) == 1
+    assert rows[0].endswith("| Two steps: 1. File the claim [1]. 2. Attach / the receipt. |")
+    assert md.splitlines()[-1] == rows[0]

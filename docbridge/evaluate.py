@@ -150,7 +150,8 @@ def to_markdown(report: dict, k: int = 5) -> str:
     lines += [f"| {key} | {value} |" for key, value in s.items()]
     lines += ["", "| id | groups | first pass rank | rewrites | correct | grounded | answer |", "|---|---|---|---|---|---|---|"]
     for r in report["items"]:
-        answer = r["answer"].replace("|", "/")
+        # One table row per answer: a newline in a multi line answer would end the row early.
+        answer = " ".join(r["answer"].split()).replace("|", "/")
         if len(answer) > 90:
             answer = answer[:87] + "..."
         lines.append(f"| {r['id']} | {','.join(r['groups'])} | {r['first_pass_rank'] or '-'} | {r['rewrites']} | "
