@@ -78,7 +78,11 @@ _MD_IMAGE = re.compile(r"!\[(?:[^\[\]]|\[[^\[\]]*\])*\]\([^)]*\)")
 # Reference and shortcut images, "![x][r]", "![x][]" and "![r]", which load the URL of a "[r]: ..." line.
 _MD_REF_IMAGE = re.compile(r"!\[([^\]\n]*)\](?:\[([^\]\n]*)\])?")
 _MD_LINK = re.compile(r"\[([^\]]*)\]\(([^)\s]+)[^)]*\)")
-_HTML_TAG = re.compile(r"<\s*(img|a|iframe|script|link|object|embed)\b[^>]*>", re.I)
+# Every tag, opening or closing, whatever its name: a list of dangerous ones always misses some
+# (<video poster>, <svg><image href>, <form action>, <base href>, <meta refresh>, <td background>), and a
+# scheme relative URL in one ("//evil.example/x") is not caught by the bare URL pass. As in a browser, a
+# tag needs a letter right after "<", so "50 < 100 > 20" and an autolink "<hr@x.example>" are not tags.
+_HTML_TAG = re.compile(r"</?[A-Za-z][A-Za-z0-9:-]*(?:[\s/][^>]*)?>")
 _BARE_URL = re.compile(r"\b(?:https?://|www\.)[^\s<>()\]]+", re.I)
 # A link reference definition ("[r]: //evil.example/x" on a line of its own) gives "[text][r]" and
 # "![x][r]" their target from somewhere else in the answer, so it is checked like an inline link.

