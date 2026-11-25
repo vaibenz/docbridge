@@ -112,3 +112,30 @@ def test_gemini_embedder_uses_the_cache_and_survives_a_429(tmp_path, monkeypatch
     again = GeminiEmbedder(dim=3, batch_size=2, cache_path=str(tmp_path / "c.sqlite")).embed_documents(["ccc", "a", "dddd"])
     assert batches == [["dddd"]]  # only the new text goes to the API
     assert np.allclose(again[0], first[2]) and np.allclose(again[1], first[0])
+
+
+def test_gemini_embedder_keeps_every_minute_inside_the_pace(monkeypatch):
+    # With a pace below the batch size (DOCBRIDGE_GEMINI_EMBED_PER_MIN=20, batches of 50), the pacer
+    # counted each batch of 50 as 20, so 50 texts went out every minute against a quota of 20.
+    pytest.importorskip("google.genai")
+    from google import genai
+
+    clock = FakeClock()
+    sent = []  # (time, texts in the request)
+
+    class Models:
+        def embed_content(self, model, contents, config):
+            sent.append((clock.t, len(contents)))
+            return types.SimpleNamespace(embeddings=[types.SimpleNamespace(values=[1.0, 0.0, 0.0])
+                                                     for _ in contents])
+
+    monkeypatch.setattr(genai, "Client", lambda: types.SimpleNamespace(models=Models()))
+    monkeypatch.delenv("DOCBRIDGE_EMBED_CACHE", raising=False)
+    from docbridge.embed import GeminiEmbedder
+
+    emb = GeminiEmbedder(dim=3, batch_size=50, per_minute=20)
+    emb.pacer.clock, emb.pacer.sleep = clock, clock.sleep
+    assert emb.embed_documents([f"text {i}" for i in range(100)]).shape == (100, 3)
+    assert sum(n for _, n in sent) == 100
+    for t, _ in sent:
+        assert sum(n for s, n in sent if t <= s < t + 60) <= 20

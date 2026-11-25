@@ -134,9 +134,12 @@ class GeminiEmbedder:
         keys = [EmbeddingCache.key(self.model, self.dim, task_type, t) for t in texts]
         found = self.cache.get_many(list(dict.fromkeys(keys))) if self.cache else {}
         todo = [i for i, k in enumerate(keys) if k not in found]
-        for start in range(0, len(todo), self.batch_size):
-            idx = todo[start:start + self.batch_size]
-            self.pacer.acquire(len(idx))  # every text in a batch counts against the per minute quota
+        # Every text in a batch counts against the per minute quota, and the pacer counts a request bigger
+        # than the whole pace as just the pace, so a batch is never bigger than the pace allows.
+        step = min(self.batch_size, self.pacer.per_minute)
+        for start in range(0, len(todo), step):
+            idx = todo[start:start + step]
+            self.pacer.acquire(len(idx))
             resp = with_backoff(lambda: self.client.models.embed_content(
                 model=self.model,
                 contents=[texts[i] for i in idx],
@@ -146,8 +149,8 @@ class GeminiEmbedder:
             found.update(new)
             if self.cache:
                 self.cache.put_many(new)
-            if len(todo) > self.batch_size:
-                print(f"  embedded {min(start + self.batch_size, len(todo))}/{len(todo)}", flush=True)
+            if len(todo) > step:
+                print(f"  embedded {min(start + step, len(todo))}/{len(todo)}", flush=True)
         # Truncated Gemini embeddings are not unit length, so normalise for cosine search.
         return _l2(np.stack([found[k] for k in keys]).astype(np.float32))
 
