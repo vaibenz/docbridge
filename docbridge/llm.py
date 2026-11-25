@@ -218,13 +218,13 @@ class GeminiLLM:
         try:
             verdicts = json.loads(self._text(GRADE_MANY_PROMPT.format(question=question, listing=listing),
                                              json_mode=True))["relevant"]
-            return [bool(v) for v in verdicts][:len(texts)] + [False] * max(0, len(texts) - len(verdicts))
+            return [_is_true(v) for v in verdicts][:len(texts)] + [False] * max(0, len(texts) - len(verdicts))
         except (json.JSONDecodeError, KeyError, TypeError):
             return [False] * len(texts)
 
     def grade(self, question: str, text: str) -> bool:
         try:
-            return bool(json.loads(self._text(GRADE_PROMPT.format(question=question, text=text), json_mode=True))["relevant"])
+            return _is_true(json.loads(self._text(GRADE_PROMPT.format(question=question, text=text), json_mode=True))["relevant"])
         except (json.JSONDecodeError, KeyError, TypeError):
             return False
 
@@ -253,6 +253,12 @@ class GeminiLLM:
             return [0.0] * len(passages)
         scores = [_finite_or_zero(s) for s in scores[:len(passages)]]
         return scores + [0.0] * (len(passages) - len(scores))
+
+
+def _is_true(v) -> bool:
+    """One grade. Only JSON true, or the string "true", passes a chunk to the generator: bool() would
+    read "false", "no" or 0.2 as relevant and let a chunk the grader rejected ground the answer."""
+    return v is True or (isinstance(v, str) and v.strip().lower() == "true")
 
 
 def _finite_or_zero(s) -> float:

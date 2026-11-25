@@ -130,3 +130,19 @@ def test_gemini_rerank_scores_that_are_not_finite_numbers_count_as_zero():
     first = _Fixed([Hit(Chunk(f"{n}.md", "p1", 0, n), 1.0) for n in "wxyz"])
     out = LLMReranker(first, llm, candidates=4).search("q", 4, ["all"])
     assert [h.chunk.text for h in out] == ["y", "w", "z", "x"]
+
+
+def test_gemini_grades_only_a_true_verdict_as_relevant():
+    # A model in JSON mode sometimes quotes its booleans. bool("false") is True, so a chunk the grader
+    # rejected went on to the generator, and a "relevant" string was graded one character at a time.
+    from docbridge.llm import GeminiLLM
+
+    llm = GeminiLLM.__new__(GeminiLLM)
+    llm._text = lambda prompt, json_mode=False: '{"relevant": [true, "false", "true", 1, "no", false, " True "]}'
+    assert llm.grade_many("q", list("abcdefg")) == [True, False, True, False, False, False, True]
+    llm._text = lambda prompt, json_mode=False: '{"relevant": "false, true"}'
+    assert llm.grade_many("q", ["a", "b"]) == [False, False]
+    llm._text = lambda prompt, json_mode=False: '{"relevant": "false"}'
+    assert llm.grade("q", "a") is False
+    llm._text = lambda prompt, json_mode=False: '{"relevant": true}'
+    assert llm.grade("q", "a") is True
