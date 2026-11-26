@@ -65,8 +65,18 @@ class AccessMap:
         if not path:
             return cls()
         data = json.loads(Path(path).read_text())
-        return cls({k.lower(): _names(f"users.{k}", v) for k, v in data.get("users", {}).items()},
-                   {k.lower(): _names(f"domains.{k}", v) for k, v in data.get("domains", {}).items()},
+        # A file of the wrong shape used to stop the server with an AttributeError naming nothing, and a
+        # misspelt section ("user", "admin") was skipped without a word: everyone it listed silently got no
+        # groups, or nobody was an admin. Either is refused at start up with what is wrong.
+        if not isinstance(data, dict):
+            raise ValueError(f"access file: must be an object with users, domains and admins, got {type(data).__name__}")
+        unknown = sorted(set(data) - {"users", "domains", "admins"})
+        if unknown:
+            raise ValueError(f"access file: unknown section {', '.join(map(repr, unknown))}, "
+                             "expected users, domains or admins")
+        users, domains = _mapping("users", data.get("users", {})), _mapping("domains", data.get("domains", {}))
+        return cls({k.lower(): _names(f"users.{k}", v) for k, v in users.items()},
+                   {k.lower(): _names(f"domains.{k}", v) for k, v in domains.items()},
                    [a.lower() for a in _names("admins", data.get("admins", []))])
 
     def groups_for(self, email: str | None) -> set[str]:
@@ -78,6 +88,12 @@ class AccessMap:
         if email in self.admins:
             out.add("admin")
         return out
+
+
+def _mapping(where: str, value: object) -> dict:
+    if not isinstance(value, dict):
+        raise ValueError(f"access file: {where} must be an object of names to groups, got {value!r}")
+    return value
 
 
 def _names(where: str, value: object) -> list[str]:

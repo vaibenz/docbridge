@@ -12,6 +12,8 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 from docbridge.auth import AccessMap, AuthError, RateLimiter, TokenVerifier  # noqa: E402
 
+from .conftest import ROOT  # noqa: E402
+
 ISS, AUD = "https://idp.example", "docbridge-test"
 
 
@@ -208,3 +210,23 @@ def test_access_file_names_written_as_one_string(tmp_path):
         path.write_text(json.dumps(bad))
         with pytest.raises(ValueError, match="access file"):
             AccessMap.load(path)
+
+
+@pytest.mark.parametrize("bad, message", [
+    (["ops@harbourline.example"], "must be an object"),
+    ({"user": {"hr.lead@harbourline.example": ["hr"]}}, "unknown section 'user'"),
+    ({"admin": ["ops@harbourline.example"]}, "unknown section 'admin'"),
+    ({"users": ["hr.lead@harbourline.example"]}, "users must be an object"),
+    ({"domains": "harbourline.example"}, "domains must be an object"),
+])
+def test_access_file_of_the_wrong_shape_is_refused_with_what_is_wrong(tmp_path, bad, message):
+    # A misspelt section used to be skipped, so the users it listed got no groups and nobody was an admin.
+    path = tmp_path / "access.json"
+    path.write_text(json.dumps(bad))
+    with pytest.raises(ValueError, match=message):
+        AccessMap.load(path)
+
+
+def test_example_access_file_loads():
+    access = AccessMap.load(ROOT / "access.example.json")
+    assert "admin" in access.groups_for("ops@harbourline.example")
