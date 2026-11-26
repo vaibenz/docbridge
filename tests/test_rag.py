@@ -123,3 +123,19 @@ def test_cli_eval_refuses_a_bad_k_before_ingesting(k, capsys):
         main(["eval", "eval/questions.jsonl", "-k", k])
     assert e.value.code == 2
     assert "-k" in capsys.readouterr().err
+
+
+def test_cli_groups_ignore_spaces_and_empty_entries():
+    from docbridge.cli import parse_groups
+
+    assert parse_groups("all, hr") == ["all", "hr"]
+    assert parse_groups(" hr ,,") == ["hr"]
+    assert parse_groups("") == []
+
+
+def test_cli_ask_with_a_spaced_group_list_reaches_the_group(capsys):
+    from docbridge.cli import main
+
+    main(["ask", "What is the merit budget for this salary review?", "--groups", "all, hr"])
+    out = capsys.readouterr().out
+    assert "4.5 percent" in out and "compensation_guidelines.pdf" in out

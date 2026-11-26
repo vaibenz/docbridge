@@ -42,6 +42,12 @@ def build_pipeline(corpus: Path | None = None, k: int = 5, mode: str = "hybrid")
     return RagPipeline(store, embedder, default_llm(), k=k, mode=mode)
 
 
+def parse_groups(text: str) -> list[str]:
+    """"all, hr" is the groups all and hr. Split on the comma alone, the space stayed on " hr", which
+    matches no group, so an HR user who typed the list naturally was told the answer was not there."""
+    return [g.strip() for g in text.split(",") if g.strip()]
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="docbridge")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -75,7 +81,7 @@ def main(argv: list[str] | None = None) -> None:
         report = ingest_folder(args.folder, embedder, default_store(dim=embedder.dim))
         print(json.dumps(report.__dict__, indent=2))
     elif args.cmd == "ask":
-        result = build_pipeline(args.corpus, mode=args.retriever).ask(args.question, args.groups.split(","))
+        result = build_pipeline(args.corpus, mode=args.retriever).ask(args.question, parse_groups(args.groups))
         print(result.answer)
         for ref in result.citations:
             print(f"  source: {ref}")
