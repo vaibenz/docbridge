@@ -4,7 +4,8 @@ import numpy as np
 import pytest
 
 from docbridge.evaluate import evaluate, groundedness, load_items, sentence_supported, to_markdown
-from docbridge.llm import IDK
+from docbridge.graph import RagPipeline
+from docbridge.llm import IDK, OfflineLLM
 from docbridge.models import Chunk, Hit
 
 from .conftest import ROOT
@@ -100,3 +101,25 @@ def test_markdown_report_keeps_a_multi_line_answer_on_one_table_row():
     assert len(rows) == 1
     assert rows[0].endswith("| Two steps: 1. File the claim [1]. 2. Attach / the receipt. |")
     assert md.splitlines()[-1] == rows[0]
+
+
+@pytest.mark.parametrize("k", [0, -1, 2.5, True])
+def test_pipeline_refuses_a_k_below_one(store, embedder, k):
+    # k=-1 used to reach the store as a slice, which returned every allowed chunk but the last.
+    with pytest.raises(ValueError, match="k must be"):
+        RagPipeline(store, embedder, OfflineLLM(), k=k)
+
+
+def test_pipeline_refuses_a_negative_max_rewrites(store, embedder):
+    with pytest.raises(ValueError, match="max_rewrites"):
+        RagPipeline(store, embedder, OfflineLLM(), max_rewrites=-1)
+
+
+@pytest.mark.parametrize("k", ["0", "-3", "five"])
+def test_cli_eval_refuses_a_bad_k_before_ingesting(k, capsys):
+    from docbridge.cli import main
+
+    with pytest.raises(SystemExit) as e:
+        main(["eval", "eval/questions.jsonl", "-k", k])
+    assert e.value.code == 2
+    assert "-k" in capsys.readouterr().err

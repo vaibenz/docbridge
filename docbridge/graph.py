@@ -133,6 +133,12 @@ class RagPipeline:
     def __init__(self, store: VectorStore, embedder: Embedder, llm: LLM, k: int = 5, max_rewrites: int = 2,
                  retriever: Retriever | None = None, mode: str = "hybrid", guard: bool = True,
                  allowed_domains: Sequence[str] = ()):
+        # A k below 1 does not mean "nothing": the memory store slices its ranking with [:k], so k=-1
+        # retrieved every chunk but the last, and pgvector refuses a negative LIMIT mid request.
+        if isinstance(k, bool) or not isinstance(k, int) or k < 1:
+            raise ValueError(f"k must be a whole number of at least 1, got {k!r}")
+        if isinstance(max_rewrites, bool) or not isinstance(max_rewrites, int) or max_rewrites < 0:
+            raise ValueError(f"max_rewrites must be a whole number of at least 0, got {max_rewrites!r}")
         self.store, self.embedder, self.llm, self.k = store, embedder, llm, k
         self.retriever = retriever or default_retriever(store, embedder, mode)
         self.graph = build_graph(self.retriever, llm, k=k, max_rewrites=max_rewrites, guard=guard,

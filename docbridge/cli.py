@@ -22,6 +22,17 @@ from .store import default_store
 DEFAULT_CORPUS = Path(__file__).resolve().parents[1] / "corpus"
 
 
+def _positive_int(text: str) -> int:
+    """-k 0 or -k -1 is refused as a usage error before the corpus is ingested."""
+    try:
+        value = int(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"{text!r} is not a whole number")
+    if value < 1:
+        raise argparse.ArgumentTypeError(f"must be at least 1, got {value}")
+    return value
+
+
 def build_pipeline(corpus: Path | None = None, k: int = 5, mode: str = "hybrid") -> RagPipeline:
     embedder = default_embedder()
     store = default_store(dim=embedder.dim)
@@ -48,7 +59,7 @@ def main(argv: list[str] | None = None) -> None:
     p_eval.add_argument("questions", type=Path)
     p_eval.add_argument("--corpus", type=Path, default=DEFAULT_CORPUS)
     p_eval.add_argument("--out", type=Path)
-    p_eval.add_argument("-k", type=int, default=5)
+    p_eval.add_argument("-k", type=_positive_int, default=5)
     p_eval.add_argument("--retriever", choices=["hybrid", "dense", "bm25"], default="hybrid")
 
     p_red = sub.add_parser("redteam", help="run the prompt injection red team suite")
