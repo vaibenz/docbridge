@@ -37,6 +37,17 @@ def test_a_sentence_longer_than_the_budget_is_split():
     assert all(f"cell{i}" in words for i in range(500))  # nothing dropped
 
 
+@pytest.mark.parametrize("kw", [{"max_words": 0}, {"max_words": -5}, {"overlap_sentences": -1}])
+def test_a_budget_below_one_or_a_negative_overlap_is_refused(kw):
+    with pytest.raises(ValueError):
+        chunk_text("One two three. Four five six. Seven eight nine.", **kw)
+
+
+def test_no_overlap_repeats_nothing():
+    chunks = chunk_text("One two three. Four five six. Seven eight nine.", max_words=3, overlap_sentences=0)
+    assert chunks == ["One two three.", "Four five six.", "Seven eight nine."]
+
+
 def test_boilerplate_lines_removed():
     pages = ["Header\nPage one body.", "Header\nPage two body.", "Header\nPage three body."]
     assert strip_boilerplate(pages) == ["Page one body.", "Page two body.", "Page three body."]

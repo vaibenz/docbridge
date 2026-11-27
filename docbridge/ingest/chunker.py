@@ -28,6 +28,12 @@ def _cap_sentence(sentence: str, max_words: int) -> list[str]:
 
 def chunk_text(text: str, max_words: int = 90, overlap_sentences: int = 1) -> list[str]:
     """No chunk is longer than max_words plus the overlapped sentence carried over from the one before."""
+    # A budget of 0 failed deep in _cap_sentence as "range() arg 3 must not be zero", and a negative overlap
+    # sliced from the wrong end: -1 carried every sentence but the first, so chunks repeated most of the last one.
+    if max_words < 1:
+        raise ValueError(f"max_words must be at least 1, got {max_words}")
+    if overlap_sentences < 0:
+        raise ValueError(f"overlap_sentences must not be negative, got {overlap_sentences}")
     sentences = [piece for s in split_sentences(text) for piece in _cap_sentence(s, max_words)]
     chunks: list[str] = []
     current: list[str] = []
