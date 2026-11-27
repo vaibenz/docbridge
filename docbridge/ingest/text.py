@@ -2,7 +2,8 @@
 
 Sections start at Markdown headings (or at the top of the file), and each
 section is chunked on sentence boundaries like PDF pages are. Chunks are cited
-as `file#s2` for the second section. A `#` line inside a fenced code block
+as `file#s2` for the second section. A heading's optional closing run of `#`s
+("## Leave ##") is dropped, as Markdown does. A `#` line inside a fenced code block
 (a shell comment, say) is code, not a heading.
 """
 
@@ -16,6 +17,13 @@ from .chunker import chunk_text
 
 _HEADING = re.compile(r"^\s{0,3}#{1,6}\s+(.*)$")
 _FENCE = re.compile(r"^\s{0,3}(`{3,}|~{3,})")
+# The optional closing run of #s ("## Leave ##"), which is markup, not part of the heading text.
+_CLOSING = re.compile(r"(^|\s+)#+\s*$")
+
+
+def _heading_sentence(text: str) -> str:
+    text = _CLOSING.sub("", text.strip()).strip().rstrip(".")
+    return text + "." if text else ""
 
 
 def split_sections(text: str) -> list[str]:
@@ -31,7 +39,8 @@ def split_sections(text: str) -> list[str]:
         if m and any(l.strip() for l in sections[-1]):
             sections.append([])
         # A heading becomes its own sentence so it stays attached to its section.
-        sections[-1].append(m.group(1).strip().rstrip(".") + "." if m else line)
+        # "### system ###" must reach the screen as "system.", like "### system", not as "system ###.".
+        sections[-1].append(_heading_sentence(m.group(1)) if m else line)
     return [re.sub(r"\s+", " ", " ".join(s)).strip() for s in sections if any(l.strip() for l in s)]
 
 

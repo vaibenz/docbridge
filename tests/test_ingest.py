@@ -106,6 +106,13 @@ def test_markdown_saved_with_a_byte_order_mark(tmp_path):
                                                       ("s2", "Travel. Book economy.")]
 
 
+def test_closing_hashes_are_not_part_of_a_heading(tmp_path):
+    # "## Leave ##" is the heading "Leave"; "C#" keeps its # because no space comes before it.
+    (tmp_path / "notes.md").write_text("## Leave ##\n\nStaff get 20 days.\n\n# C# #\n\nUse .NET 8.\n")
+    chunks = load_text(tmp_path / "notes.md", ("all",), "Notes")
+    assert [c.text for c in chunks] == ["Leave. Staff get 20 days.", "C#. Use .NET 8."]
+
+
 def test_hidden_files_in_the_corpus_folder_are_skipped(tmp_path):
     # Copying a folder from a Mac onto a share or into a zip leaves a "._name" file of resource fork
     # bytes beside each real one. "._handbook.pdf" is not a PDF, and pypdf failing on it stopped the
