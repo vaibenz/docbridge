@@ -139,6 +139,10 @@ class TokenVerifier:
         except jwt.PyJWTError as e:
             raise AuthError(str(e)) from e
         email = claims.get("email") if _is_verified(claims.get("email_verified")) else None
+        # Only a string is an address. A list, number or object here used to reach email.lower() in the
+        # access map and fail with an AttributeError: a 500 for a validly signed token.
+        if not isinstance(email, str) or not email.strip():
+            email = None
         groups = set(_claim_groups(claims.get(self.groups_claim))) | self.access.groups_for(email) | {"all"}
         return Principal(claims["sub"], email, tuple(sorted(groups)))
 

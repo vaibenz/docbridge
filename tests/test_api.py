@@ -66,6 +66,13 @@ def test_unverified_email_is_not_used_for_groups(keys, verifier, verified):
     assert verifier.verify(token).groups == ("all",)
 
 
+@pytest.mark.parametrize("email", [["hr.lead@harbourline.example"], 5, {"hr.lead@harbourline.example": 1}, "", "  "])
+def test_email_claim_that_is_not_an_address_gives_no_email_groups(keys, verifier, email):
+    p = verifier.verify(make_token(keys[0], email=email, groups=["engineering"]))
+    assert p.email is None
+    assert set(p.groups) == {"all", "engineering"}
+
+
 @pytest.mark.parametrize("verified", [True, "true", "TRUE"])
 def test_verified_email_as_bool_or_string_is_used_for_groups(keys, verifier, verified):
     token = make_token(keys[0], email="hr.lead@harbourline.example", email_verified=verified)
