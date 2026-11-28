@@ -145,7 +145,16 @@ class GeminiEmbedder:
                 contents=[texts[i] for i in idx],
                 config=types.EmbedContentConfig(task_type=task_type, output_dimensionality=self.dim),
             ))
-            new = {keys[i]: np.asarray(e.values, dtype=np.float32) for i, e in zip(idx, resp.embeddings)}
+            # Checked before anything is cached: zip() quietly dropped the texts past a short reply, which then
+            # failed later as a bare KeyError, and a vector of the wrong size was written to the cache under this
+            # dimension's key, so every later run that read it failed in np.stack until the cache was deleted.
+            got = list(resp.embeddings or [])
+            if len(got) != len(idx):
+                raise RuntimeError(f"Gemini returned {len(got)} embeddings for {len(idx)} texts")
+            new = {keys[i]: np.asarray(e.values, dtype=np.float32) for i, e in zip(idx, got)}
+            bad = {v.shape for v in new.values() if v.shape != (self.dim,)}
+            if bad:
+                raise RuntimeError(f"Gemini returned embeddings of shape {sorted(bad)}, expected ({self.dim},)")
             found.update(new)
             if self.cache:
                 self.cache.put_many(new)

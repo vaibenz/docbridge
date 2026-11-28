@@ -139,3 +139,26 @@ def test_gemini_embedder_keeps_every_minute_inside_the_pace(monkeypatch):
     assert sum(n for _, n in sent) == 100
     for t, _ in sent:
         assert sum(n for s, n in sent if t <= s < t + 60) <= 20
+
+
+@pytest.mark.parametrize("reply", ["short", "wrong_dim", "none"])
+def test_gemini_embedder_refuses_a_bad_reply_and_caches_none_of_it(tmp_path, monkeypatch, reply):
+    pytest.importorskip("google.genai")
+    from google import genai
+
+    class Models:
+        def embed_content(self, model, contents, config):
+            if reply == "none":
+                return types.SimpleNamespace(embeddings=None)
+            dim = 4 if reply == "wrong_dim" else 3
+            vecs = [types.SimpleNamespace(values=[1.0] * dim) for _ in contents]
+            return types.SimpleNamespace(embeddings=vecs[:-1] if reply == "short" else vecs)
+
+    monkeypatch.setattr(genai, "Client", lambda: types.SimpleNamespace(models=Models()))
+    from docbridge.embed import GeminiEmbedder
+
+    path = tmp_path / "c.sqlite"
+    with pytest.raises(RuntimeError, match="Gemini returned"):
+        GeminiEmbedder(dim=3, batch_size=10, cache_path=str(path)).embed_documents(["a", "bb", "ccc"])
+    keys = [EmbeddingCache.key("gemini-embedding-001", 3, "RETRIEVAL_DOCUMENT", t) for t in ["a", "bb", "ccc"]]
+    assert EmbeddingCache(path).get_many(keys) == {}
