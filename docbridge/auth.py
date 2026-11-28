@@ -138,6 +138,10 @@ class TokenVerifier:
                                 options={"require": ["exp", "iat", "iss", "aud", "sub"]})
         except jwt.PyJWTError as e:
             raise AuthError(str(e)) from e
+        # PyJWT checks that sub is a string, but "" or "  " passes: every such token would share one rate
+        # limit bucket and one audit identity, so a subject that names nobody is refused.
+        if not claims["sub"].strip():
+            raise AuthError("token has a blank sub claim")
         email = claims.get("email") if _is_verified(claims.get("email_verified")) else None
         # Only a string is an address. A list, number or object here used to reach email.lower() in the
         # access map and fail with an AttributeError: a 500 for a validly signed token.

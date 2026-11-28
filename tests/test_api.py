@@ -84,6 +84,8 @@ def test_verified_email_as_bool_or_string_is_used_for_groups(keys, verifier, ver
     ({"aud": "someone-else"}, "(?i)audience"),
     ({"iss": "https://evil.example"}, "(?i)issuer"),
     ({"sub": None}, "sub"),
+    ({"sub": ""}, "sub"),
+    ({"sub": "   "}, "sub"),
     ({"exp": None}, "exp"),
 ])
 def test_bad_claims_are_rejected(keys, verifier, change, message):

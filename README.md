@@ -126,7 +126,7 @@ DOCBRIDGE_AUTH=dev uvicorn docbridge.api:app      # local development, no sign i
 uvicorn docbridge.api:app                          # OpenID Connect, settings in .env.example
 ```
 
-* **Sign in** with any OpenID Connect provider. The web app uses Google sign in and sends the ID token as a bearer token. The server verifies it locally against the provider's published keys: signature, issuer, audience, expiry and subject.
+* **Sign in** with any OpenID Connect provider. The web app uses Google sign in and sends the ID token as a bearer token. The server verifies it locally against the provider's published keys: signature, issuer, audience, expiry and a non blank subject.
   * Only asymmetric algorithms are accepted, checked before the key is even looked up. That refuses unsigned tokens (`alg: none`) and the HS256 confusion attack, where a token is signed with the public key as an HMAC secret. Both have tests.
 * **Groups** come from a `groups` claim (Entra ID and Okta can issue one; a list of names or one space separated string, anything else counts as no groups) and from an access file mapping verified emails (an email claim that is not a string counts as none) and email domains to groups, since Google's tokens carry none. Everyone gets `all`, and unknown users get nothing more. An access file of the wrong shape, or with a section other than `users`, `domains` and `admins` (a misspelt `admin`, say), stops the server at start up instead of quietly granting nothing.
 * **Rate limit:** a token bucket per user, `429` when it's empty, with a `Retry-After` that is the actual wait until the next token rather than a fixed guess. Blank questions are refused before they cost an embedding or an LLM call.
