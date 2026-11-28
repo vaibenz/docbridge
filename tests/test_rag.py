@@ -47,6 +47,33 @@ def test_table_rows_are_retrievable(pipeline):
     assert r.citations == ["warehouse_sla.csv#row:Changi Airfreight"]
 
 
+class _Fixed:
+    """A retriever and LLM that return what they are given, to drive the graph directly."""
+
+    def __init__(self, hits, answer):
+        self.hits, self.answer = hits, answer
+
+    def search(self, query, k, groups):
+        return list(self.hits)
+
+    def grade(self, question, text):
+        return True
+
+    def rewrite(self, question, attempt):
+        return question
+
+    def generate(self, question, hits):
+        return self.answer
+
+
+def test_two_chunks_of_one_page_are_cited_once():
+    hits = [Hit(Chunk("doc.pdf", "p1", 0, "First part."), 1.0), Hit(Chunk("doc.pdf", "p1", 1, "Second part."), 0.9),
+            Hit(Chunk("doc.pdf", "p2", 0, "Other page."), 0.8)]
+    fixed = _Fixed(hits, "First part. [2] Second part. [1] Other page. [3] Again. [1] Out of range. [9]")
+    r = RagPipeline(None, None, fixed, retriever=fixed, guard=False).ask("q")
+    assert r.citations == ["doc.pdf#p1", "doc.pdf#p2"]
+
+
 def _hit(text):
     return Hit(Chunk("doc.pdf", "p1", 0, text), 1.0)
 

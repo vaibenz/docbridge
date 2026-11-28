@@ -97,8 +97,10 @@ def build_graph(retriever: Retriever, llm: LLM, k: int = 5, max_rewrites: int = 
             if removed:
                 steps.append(f"guard:removed {len(removed)}")
         cited = sorted({int(n) for n in re.findall(r"\[(\d+)\]", answer) if 0 < int(n) <= len(relevant)})
-        return {"answer": answer, "citations": [relevant[n - 1].chunk.ref for n in cited],
-                "removed": removed, "steps": steps}
+        # Citations are page or row references, and a page is often split into several chunks: an answer
+        # citing [1] and [2] from the same page listed that page twice. Each source is listed once.
+        citations = list(dict.fromkeys(relevant[n - 1].chunk.ref for n in cited))
+        return {"answer": answer, "citations": citations, "removed": removed, "steps": steps}
 
     def fallback(state: RagState) -> RagState:
         return {"answer": IDK, "citations": [], "steps": state["steps"] + ["fallback"]}
