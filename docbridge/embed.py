@@ -168,10 +168,25 @@ def has_gemini_credentials() -> bool:
     return bool(os.environ.get("GOOGLE_API_KEY")) or os.environ.get("GOOGLE_GENAI_USE_VERTEXAI", "").lower() in ("1", "true")
 
 
+def backend_choice(name: str, choices: tuple[str, ...]) -> str | None:
+    """The backend an environment variable asks for, or None when it is unset or empty.
+
+    Anything else is refused at start up. "DOCBRIDGE_EMBEDDER=Hashing" or a typo such as "wordlama" used to
+    fall through to the automatic choice, so the server quietly embedded with Gemini (spending quota) or
+    WordLlama, and "DOCBRIDGE_LLM=ofline" sent every question to Gemini."""
+    raw = os.environ.get(name)
+    if raw is None or not raw.strip():
+        return None
+    value = raw.strip().lower()
+    if value not in choices:
+        raise ValueError(f"{name}={raw!r}: expected one of {', '.join(choices)}")
+    return value
+
+
 def default_embedder() -> Embedder:
     """DOCBRIDGE_EMBEDDER picks gemini, wordllama or hashing; otherwise Gemini when
     credentials exist, else WordLlama when installed, else the hashing stand in."""
-    choice = os.environ.get("DOCBRIDGE_EMBEDDER")
+    choice = backend_choice("DOCBRIDGE_EMBEDDER", ("gemini", "wordllama", "hashing"))
     if choice == "hashing":
         return HashingEmbedder()
     if choice == "gemini" or (choice is None and has_gemini_credentials()):

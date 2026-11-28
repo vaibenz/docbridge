@@ -166,3 +166,28 @@ def test_cli_ask_with_a_spaced_group_list_reaches_the_group(capsys):
     main(["ask", "What is the merit budget for this salary review?", "--groups", "all, hr"])
     out = capsys.readouterr().out
     assert "4.5 percent" in out and "compensation_guidelines.pdf" in out
+
+
+@pytest.mark.parametrize("var, value", [("DOCBRIDGE_EMBEDDER", "hashng"), ("DOCBRIDGE_EMBEDDER", "openai"),
+                                        ("DOCBRIDGE_LLM", "ofline"), ("DOCBRIDGE_LLM", "gpt")])
+def test_an_unknown_backend_is_refused_not_replaced(monkeypatch, var, value):
+    from docbridge.embed import default_embedder
+    from docbridge.llm import default_llm
+
+    monkeypatch.setenv(var, value)
+    with pytest.raises(ValueError, match=var):
+        default_embedder() if var == "DOCBRIDGE_EMBEDDER" else default_llm()
+
+
+def test_backend_names_ignore_case_and_an_empty_value_means_unset(monkeypatch):
+    from docbridge.embed import HashingEmbedder, default_embedder
+    from docbridge.llm import default_llm
+
+    monkeypatch.setenv("DOCBRIDGE_EMBEDDER", " Hashing ")
+    monkeypatch.setenv("DOCBRIDGE_LLM", "OFFLINE")
+    assert isinstance(default_embedder(), HashingEmbedder)
+    assert isinstance(default_llm(), OfflineLLM)
+    monkeypatch.setenv("DOCBRIDGE_LLM", "")
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    monkeypatch.delenv("GOOGLE_GENAI_USE_VERTEXAI", raising=False)
+    assert isinstance(default_llm(), OfflineLLM)

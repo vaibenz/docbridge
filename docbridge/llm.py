@@ -273,9 +273,9 @@ def _finite_or_zero(s) -> float:
 
 
 def default_llm() -> LLM:
-    from .embed import has_gemini_credentials
+    from .embed import backend_choice, has_gemini_credentials
 
-    choice = os.environ.get("DOCBRIDGE_LLM")
+    choice = backend_choice("DOCBRIDGE_LLM", ("offline", "gemini"))
     if choice == "offline" or (choice is None and not has_gemini_credentials()):
         return OfflineLLM()
     return GeminiLLM()
